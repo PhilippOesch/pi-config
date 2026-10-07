@@ -51,12 +51,7 @@ Execute this as a chain, passing output between steps via {previous}.
 - **Steps** — from planner, each with a completion criterion
 - **Risks / Open questions** — from planner plus anything unresolved
 
-### 2.5 Internal Review plan - Review by subagent
-
-- dispatch the `plan-reviewer` **subagent** to get first feedback for the current plan.
-- Update `plans/{task}_plan.md` to include feedback from `plan-reviewer` **subagent**.
-
-### 2.6 External Review - Review by user
+### 2.6 Review
 
 - open `plans/{task}_plan.md` in the browser.
 - **Confirm** — ask the user whether anything is missing or should change. Do not move to implementation until they confirm.
