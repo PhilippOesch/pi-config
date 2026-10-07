@@ -26,10 +26,18 @@ dependencies of local extensions:
 npm i
 ```
 
+MCP configuration is machine-specific and not tracked. Copy the example and
+set the environment variables it references:
+
+```bash
+cp mcp.example.json mcp.json
+export OBSIDIAN_PATH="$HOME/path/to/your/vault"
+```
+
 ## Contents
 
 - `settings.json` — Pi settings
-- `mcp.json` — MCP server configuration
+- `mcp.example.json` — Template for MCP server configuration (copy to `mcp.json`)
 - `keybindings.json` — Custom keybindings
 - `blacklist.json` — Path blacklist
 - `agents/` — Custom subagents
@@ -39,8 +47,10 @@ npm i
 
 ## User data (not tracked)
 
-The following files are generated at runtime and are not committed:
+The following files are generated at runtime or are machine-specific and are
+not committed:
 
+- `mcp.json`
 - `auth.json`
 - `trust.json`
 - `models-store.json`

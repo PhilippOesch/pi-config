@@ -3,6 +3,7 @@ node_modules/
 npm/
 
 # Runtime / user data
+mcp.json
 auth.json
 trust.json
 models-store.json
