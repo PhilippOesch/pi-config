@@ -4,14 +4,13 @@
     "npm:pi-opencode-provider",
     "npm:pi-web-access",
     "npm:pi-memory",
-    "npm:marked"
+    "npm:marked",
+    "@modelcontextprotocol/sdk"
   ],
   "defaultProvider": "opencode-go",
   "defaultModel": "kimi-k2.7-code",
   "defaultThinkingLevel": "medium",
   "theme": "tokyonight",
-  "prompts": [
-    "~/.config/opencode/commands/"
-  ],
+  "prompts": ["~/.config/opencode/commands/"],
   "hideThinkingBlock": false
 }
