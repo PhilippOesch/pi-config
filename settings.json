@@ -3,7 +3,7 @@
   "packages": [
     "npm:pi-opencode-provider",
     "npm:pi-web-access",
-    "npm:pi-memory",
+    "npm:pi-memory"
   ],
   "defaultProvider": "opencode-go",
   "defaultModel": "kimi-k3",
