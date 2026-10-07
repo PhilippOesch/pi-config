@@ -18,12 +18,15 @@ import {
   type ExtensionAPI,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
+import { registerAwareness } from "./awareness.ts";
 import { SubagentDispatch } from "./dispatch.ts";
 import { createTextResult } from "./result.ts";
 import { renderCall, renderResult } from "./render.ts";
 import { SubagentParams } from "./types.ts";
 
 export default function (pi: ExtensionAPI) {
+  registerAwareness(pi);
+
   pi.registerTool({
     name: "subagent",
     label: "Subagent",

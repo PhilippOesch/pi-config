@@ -19,6 +19,7 @@ import {
 import { getFinalOutput } from "./result.ts";
 import { errorMessage } from "../shared/utils.ts";
 import type { AgentConfig } from "./agents.ts";
+import { buildSpawnEnv } from "./awareness.ts";
 
 type PiStreamEvent =
   | { type: "message_end"; message: Message }
@@ -128,6 +129,7 @@ export class SpawnSubagentProcessAdapter implements SubagentProcessAdapter {
         cwd: request.cwd,
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
+        env: buildSpawnEnv(process.env),
       });
       let buffer = "";
       let exited = false;
