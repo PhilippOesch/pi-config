@@ -12,3 +12,5 @@ sessions/
 
 # Logs
 *.log
+install
+bin
