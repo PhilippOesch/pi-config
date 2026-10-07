@@ -1,0 +1,8 @@
+{
+  "tui.input.newLine": ["ctrl+j", "shift+enter"],
+  "app.interrupt": ["F12", "escape"],
+  "tui.select.up": ["up", "ctrl+p"],
+  "tui.select.down": ["down", "ctrl+n"],
+  "app.model.cycleForward": ["ctrl+;"],
+  "app.model.cycleForward": ["shift+ctrl+;"]
+}

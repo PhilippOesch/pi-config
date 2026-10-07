@@ -1,0 +1,14 @@
+{
+  "mcp": {
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "obsidian": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@bitbonsai/mcpvault@latest", "$OBSIDIAN_PATH"]
+    }
+  }
+}

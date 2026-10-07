@@ -1,0 +1,16 @@
+{
+  "lastChangelogVersion": "1.0.2",
+  "packages": [
+    "npm:pi-opencode-provider",
+    "npm:pi-web-access",
+    "npm:pi-memory"
+  ],
+  "defaultProvider": "opencode-go",
+  "defaultModel": "kimi-k2.7-code",
+  "defaultThinkingLevel": "medium",
+  "theme": "tokyonight",
+  "prompts": [
+    "~/.config/opencode/commands/"
+  ],
+  "hideThinkingBlock": false
+}

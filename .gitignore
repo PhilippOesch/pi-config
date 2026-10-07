@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+npm/
+
+# Runtime / user data
+auth.json
+trust.json
+models-store.json
+memory/
+sessions/
+
+# Logs
+*.log

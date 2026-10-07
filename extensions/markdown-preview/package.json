@@ -1,0 +1,16 @@
+{
+  "name": "pi-extension-markdown-preview",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.74.2",
+    "@types/node": "^26.2.0",
+    "marked": "^15.0.7"
+  }
+}
