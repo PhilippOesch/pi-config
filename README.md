@@ -19,6 +19,13 @@ Then symlink `home/pi` to `~/.pi`:
 ln -s "$HOME/dotfiles/home/pi" "$HOME/.pi"
 ```
 
+Install the config dependencies once per machine — Pi does not auto-install
+dependencies of local extensions:
+
+```bash
+npm i
+```
+
 ## Contents
 
 - `settings.json` — Pi settings
