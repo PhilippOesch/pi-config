@@ -5,7 +5,7 @@
     "npm:pi-web-access",
     "npm:pi-memory",
     "npm:marked",
-    "@modelcontextprotocol/sdk"
+    "npm:@modelcontextprotocol/sdk"
   ],
   "defaultProvider": "opencode-go",
   "defaultModel": "kimi-k2.7-code",
