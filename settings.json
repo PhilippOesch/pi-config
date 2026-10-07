@@ -9,6 +9,5 @@
   "defaultModel": "kimi-k3",
   "defaultThinkingLevel": "medium",
   "theme": "tokyonight",
-  "prompts": ["~/.config/opencode/commands/"],
   "hideThinkingBlock": false
 }
