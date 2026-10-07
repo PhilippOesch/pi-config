@@ -3,7 +3,7 @@ name: code-reviewer
 description: Code review specialist for quality and security analysis
 tools: read, grep, find, ls, bash
 models:
-  - github-copilot/gpt-5.6-terra
+  - github-copilot/gpt-6-astra
   - opencode-go/kimi-k2.7-code
 ---
 

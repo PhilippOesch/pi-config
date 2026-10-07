@@ -3,7 +3,7 @@ name: web-crawler
 description: Research subagent that investigates a topic using pi-web-access web search/fetch or the Context7 MCP, then returns a cited summary
 tools: web_search, fetch_content, get_search_content, source_check, context7_resolve_library_id, context7_query_docs, read, bash
 models:
-  - github-copilot/gpt-5.6-luna
+  - github-copilot/gpt-6-luna
   - opencode-go/minimax-m3
 ---
 

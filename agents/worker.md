@@ -3,7 +3,7 @@ name: worker
 description: General-purpose subagent with full capabilities, isolated context
 requiresConfirmation: true
 models:
-  - github-copilot/gpt-5.6-terra
+  - github-copilot/gpt-6-sol
   - opencode-go/kimi-k2.7-code
 ---
 

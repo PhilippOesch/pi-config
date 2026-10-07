@@ -3,7 +3,7 @@ name: plan-reviewer
 description: Plan review specialist for finding inconsistencies and unclarities in implementation plans
 tools: read, grep, find, ls, bash
 models:
-  - github-copilot/gpt-5.6-terra
+  - github-copilot/gpt-6-sol
   - opencode-go/kimi-k2.7-code
 ---
 

@@ -3,7 +3,7 @@ name: scout
 description: Fast codebase recon that returns compressed context for handoff to other agents
 tools: read, grep, find, ls, bash
 models:
-  - github-copilot/gpt-5.6-luna
+  - github-copilot/gpt-6-luna
   - opencode-go/minimax-m3
 ---
 
