@@ -1,14 +1,22 @@
 {
-  "mcp": {
+  "mcpServers": {
     "context7": {
-      "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    },
+    "tavily": {
+      "url": "https://mcp.tavily.com/mcp/"
     },
     "obsidian": {
-      "type": "stdio",
       "command": "npx",
-      "args": ["@bitbonsai/mcpvault@latest", "$OBSIDIAN_PATH"]
-    }
+      "args": [
+        "@bitbonsai/mcpvault@latest",
+        "<some path>"
+      ],
+      "exposure": "hidden"
+    },
   }
 }

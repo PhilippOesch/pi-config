@@ -2,12 +2,12 @@
   "lastChangelogVersion": "1.1.0",
   "packages": [
     "npm:pi-opencode-provider",
-    "npm:pi-web-access",
-    "npm:pi-memory"
+    "npm:pi-web-access"
   ],
-  "defaultProvider": "opencode-go",
-  "defaultModel": "kimi-k3",
+  "defaultProvider": "github-copilot",
+  "defaultModel": "gpt-6-luna",
   "defaultThinkingLevel": "medium",
   "theme": "tokyonight",
-  "hideThinkingBlock": false
+  "hideThinkingBlock": false,
+  "skills": ["~/.agents/skills"]
 }
