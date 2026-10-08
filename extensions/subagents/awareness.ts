@@ -30,10 +30,7 @@ export function buildAwarenessSection(cwd: string): string | undefined {
     .map((a) => `- ${a.name} (${a.source}): ${a.description}`)
     .join("\n");
 
-  return [
-    "Delegate to these with the subagent tool:",
-    lines,
-  ].join("\n");
+  return ["Delegate to these with the subagent tool:", lines].join("\n");
 }
 
 export function registerAwareness(pi: ExtensionAPI): void {

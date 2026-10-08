@@ -45,7 +45,7 @@ describe("buildAwarenessSection", () => {
 
     const section = buildAwarenessSection("/tmp");
 
-    expect(section).toContain("## Available subagents");
+    expect(section).toContain("Delegate to these with the subagent tool:");
     expect(section).toContain("- writer (user): Writes prose");
   });
 

@@ -145,6 +145,8 @@ models: [anthropic/claude-haiku-4-5, openai/gpt-5]
 System prompt for the agent goes here.
 ```
 
+Subagent processes start with `--no-skills`, while each agent's Markdown body is still appended as its custom instructions.
+
 **Frontmatter fields:**
 
 - `name` (required) — agent identifier used by tool calls.

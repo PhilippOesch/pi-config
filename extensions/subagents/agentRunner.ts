@@ -299,7 +299,13 @@ export class AgentRunner {
     agent: AgentConfig,
     task: string,
   ): { args: string[]; model?: string } {
-    const args: string[] = ["--mode", "json", "-p", "--no-session"];
+    const args: string[] = [
+      "--mode",
+      "json",
+      "-p",
+      "--no-session",
+      "--no-skills",
+    ];
     const agentHasModel = Boolean(agent.model) || Boolean(agent.models?.length);
     const inheritsDispatchConfig = !agentHasModel;
     const model =

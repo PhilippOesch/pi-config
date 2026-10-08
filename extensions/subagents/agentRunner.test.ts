@@ -85,7 +85,13 @@ describe("AgentRunner", () => {
 
     const request = adapter.run.mock.calls[0]![0];
     expect(request.args).toEqual(
-      expect.arrayContaining(["--mode", "json", "-p", "--no-session"]),
+      expect.arrayContaining([
+        "--mode",
+        "json",
+        "-p",
+        "--no-session",
+        "--no-skills",
+      ]),
     );
   });
 
