@@ -41,7 +41,7 @@ export OBSIDIAN_PATH="$HOME/path/to/your/vault"
 - `keybindings.json` — Custom keybindings
 - `blacklist.json` — Path blacklist
 - `agents/` — Custom subagents
-- `extensions/` — Pi extensions
+- `extensions/` — Pi extensions; `instructions.ts` lists files to load from the agent directory and project ancestors. Files with `applyTo` frontmatter are added as read-on-match pointers.
 - `prompts/` — Prompt templates
 - `themes/` — Custom themes
 
