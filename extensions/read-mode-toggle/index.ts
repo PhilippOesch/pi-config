@@ -82,6 +82,14 @@ export default function readModeToggleExtension(pi: ExtensionAPI): void {
     },
   });
 
+  pi.registerShortcut("ctrl+shift+m", {
+    description: "Toggle between save mode and yolo mode",
+    handler: (ctx) => {
+      if (!ctx.hasUI) return;
+      toggle(ctx);
+    },
+  });
+
   // Restore the persisted mode on every session start (startup, reload, new,
   // resume, fork). We scan the current branch so tree navigation reflects the
   // mode at the active leaf.
