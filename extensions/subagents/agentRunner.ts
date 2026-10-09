@@ -99,6 +99,11 @@ function createEmptyUsage(): UsageStats {
   };
 }
 
+const SUBAGENT_SYSTEM_PROMPT = [
+  "You are running as a Pi subagent, not the primary agent.",
+  "The global AGENTS.md instructions to load i-have-adhd and caveman apply only to the primary agent; do not load either skill.",
+].join(" ");
+
 export type ProcessEvent =
   | { type: "stdout"; line: string }
   | { type: "stderr"; data: string }
@@ -209,7 +214,7 @@ export class AgentRunner {
       };
     }
 
-    const { args, model } = this.buildArgs(subAgentContext, agent, task);
+    const { args, model } = this.buildArgs(subAgentContext, agent);
 
     const currentResult: SingleResult = {
       agent: agentName,
@@ -241,12 +246,16 @@ export class AgentRunner {
     let tmpPromptPath: string | null = null;
 
     try {
-      if (agent.systemPrompt.trim()) {
-        const tmp = await writePromptToTempFile(agent.name, agent.systemPrompt);
+      const agentPrompt = [SUBAGENT_SYSTEM_PROMPT, agent.systemPrompt.trim()]
+        .filter(Boolean)
+        .join("\n\n");
+      if (agentPrompt) {
+        const tmp = await writePromptToTempFile(agent.name, agentPrompt);
         tmpPromptDir = tmp.dir;
         tmpPromptPath = tmp.filePath;
         args.push("--append-system-prompt", tmpPromptPath);
       }
+      args.push(`Task: ${task}`);
 
       const invocation = getPiInvocation(args);
 
@@ -297,7 +306,6 @@ export class AgentRunner {
   private buildArgs(
     subAgentContext: SubAgentToolContext,
     agent: AgentConfig,
-    task: string,
   ): { args: string[]; model?: string } {
     const args: string[] = [
       "--mode",
@@ -325,7 +333,6 @@ export class AgentRunner {
     if (agent.tools && agent.tools.length > 0)
       args.push("--tools", agent.tools.join(","));
 
-    args.push(`Task: ${task}`);
     return { args, model };
   }
 

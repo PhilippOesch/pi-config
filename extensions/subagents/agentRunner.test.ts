@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
 import type { Model, Api } from "@earendil-works/pi-ai";
-import { AgentRunner, type ProcessEvent } from "./agentRunner.ts";
+import {
+  AgentRunner,
+  type ProcessEvent,
+  type SubagentProcessRequest,
+} from "./agentRunner.ts";
 import {
   EXIT_CODE,
   type SingleResult,
@@ -12,11 +16,24 @@ import type { AgentConfig } from "./agents.ts";
 
 class FakeProcessAdapter {
   events: ProcessEvent[] = [];
-  run = vi.fn(async (_request, onEvent) => {
-    for (const event of this.events) {
-      onEvent(event);
-    }
-  });
+  promptContent: string | undefined;
+  run = vi.fn(
+    async (
+      request: SubagentProcessRequest,
+      onEvent: (event: ProcessEvent) => void,
+    ) => {
+      const promptIndex = request.args.indexOf("--append-system-prompt");
+      if (promptIndex >= 0) {
+        this.promptContent = fs.readFileSync(
+          request.args[promptIndex + 1] as string,
+          "utf-8",
+        );
+      }
+      for (const event of this.events) {
+        onEvent(event);
+      }
+    },
+  );
 }
 
 const makeAgent = (overrides: Partial<AgentConfig> = {}): AgentConfig => ({
@@ -93,6 +110,8 @@ describe("AgentRunner", () => {
         "--no-skills",
       ]),
     );
+    expect(adapter.promptContent).toContain("You are running as a Pi subagent");
+    expect(adapter.promptContent).toContain("do not load either skill");
   });
 
   it("prefers the first available model from agent.models", async () => {
@@ -201,6 +220,8 @@ describe("AgentRunner", () => {
     expect(promptIndex).toBeGreaterThan(-1);
     const promptPath = request.args[promptIndex + 1] as string;
     expect(promptPath).toMatch(/prompt-worker\.md$/);
+    expect(adapter.promptContent).toContain("You are running as a Pi subagent");
+    expect(adapter.promptContent).toContain("Be helpful.");
     expect(fs.existsSync(promptPath)).toBe(false);
   });
 
