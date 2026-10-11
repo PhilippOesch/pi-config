@@ -23,7 +23,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Model } from "@earendil-works/pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { modelsAreEqual } from "@earendil-works/pi-ai";
 import {
 	type ExtensionAPI,
@@ -44,11 +44,15 @@ const STORAGE_FILENAME = "favorite-models.json";
 const STORAGE_VERSION = 1;
 const MAX_VISIBLE = 10;
 const SHORTCUT = Key.ctrlShift("m");
+const FAVORITES_HEADER = "  ── Favorites ──";
+const ALL_HEADER = "  ── All models ──";
 
 interface StorageShape {
 	version: number;
 	favorites: string[];
 }
+
+type Section = "favorites" | "all";
 
 function storageFilePath(): string {
 	return join(getAgentDir(), STORAGE_FILENAME);
@@ -74,16 +78,50 @@ function saveFavorites(favorites: string[]): void {
 	writeFileSync(storageFilePath(), JSON.stringify(payload, null, 2) + "\n", "utf-8");
 }
 
-function modelKey(model: Model): string {
+/**
+ * Persist favorites and route any write error to a caller-supplied sink.
+ * Saves each call site from repeating the same try/catch wrapper.
+ */
+function persistFavorites(
+	favorites: string[],
+	reportError: (error: unknown) => void,
+): void {
+	try {
+		saveFavorites(favorites);
+	} catch (error) {
+		reportError(error);
+	}
+}
+
+function modelKey(model: Model<Api>): string {
 	return `${model.provider}/${model.id}`;
 }
 
-function isFavorite(favoriteSet: Set<string>, model: Model): boolean {
+function indexOfKey(models: readonly Model<Api>[], key: string): number {
+	return models.findIndex((model) => modelKey(model) === key);
+}
+
+function isFavorite(favoriteSet: Set<string>, model: Model<Api>): boolean {
 	return favoriteSet.has(modelKey(model));
 }
 
-function searchText(model: Model): string {
+function searchText(model: Model<Api>): string {
 	return `${model.id} ${model.provider} ${model.name}`;
+}
+
+function sectionLabel(section: Section): string {
+	return section === "favorites" ? FAVORITES_HEADER : ALL_HEADER;
+}
+
+function formatModelRow(
+	model: Model<Api>,
+	flags: { selected: boolean; favorite: boolean; current: boolean },
+): string {
+	const cursor = flags.selected ? "→ " : "  ";
+	const favMark = flags.favorite ? "★ " : "  ";
+	const currentMark = flags.current ? "✓ " : "  ";
+	const idText = flags.selected ? `\x1b[36m${model.id}\x1b[0m` : model.id;
+	return `${cursor}${favMark}${currentMark}${idText} [${model.provider}]`;
 }
 
 /**
@@ -93,15 +131,15 @@ function searchText(model: Model): string {
  *   3. Remaining models, sorted by provider then id
  */
 function buildDisplayModels(
-	allModels: readonly Model[],
+	allModels: readonly Model<Api>[],
 	favoriteSet: Set<string>,
-	currentModel: Model | undefined,
+	currentModel: Model<Api> | undefined,
 	favoriteList: readonly string[],
-): Model[] {
-	const byKey = new Map<string, Model>();
+): Model<Api>[] {
+	const byKey = new Map<string, Model<Api>>();
 	for (const model of allModels) byKey.set(modelKey(model), model);
 
-	const ordered: Model[] = [];
+	const ordered: Model<Api>[] = [];
 	const seen = new Set<string>();
 
 	for (const key of favoriteList) {
@@ -132,14 +170,14 @@ function buildDisplayModels(
 function createSelector(
 	tui: { requestRender: () => void },
 	ctx: ExtensionContext,
-	allModels: readonly Model[],
+	allModels: readonly Model<Api>[],
 	favoriteList: string[],
-	onResult: (result: { kind: "select"; model: Model } | { kind: "cancel" }) => void,
+	onResult: (result: { kind: "select"; model: Model<Api> } | { kind: "cancel" }) => void,
 	onFavoriteChange: () => void,
 ): { render: (width: number) => string[]; invalidate: () => void; handleInput: (data: string) => void } {
 	const currentModel = ctx.model;
 	const favoriteSet = new Set(favoriteList);
-	let displayModels: Model[] = buildDisplayModels(allModels, favoriteSet, currentModel, favoriteList);
+	let displayModels: Model<Api>[] = buildDisplayModels(allModels, favoriteSet, currentModel, favoriteList);
 
 	const container = new Container();
 	container.addChild(new DynamicBorder());
@@ -162,7 +200,7 @@ function createSelector(
 	container.addChild(new DynamicBorder());
 
 	let selectedIndex = 0;
-	let filteredModels: Model[] = displayModels;
+	let filteredModels: Model<Api>[] = displayModels;
 
 	function rebuildDisplayModels(): void {
 		displayModels = buildDisplayModels(allModels, favoriteSet, currentModel, favoriteList);
@@ -193,31 +231,29 @@ function createSelector(
 		);
 		const endIndex = Math.min(startIndex + MAX_VISIBLE, filteredModels.length);
 
-		let lastSection: "favorites" | "all" | null = null;
+		let lastSection: Section | null = null;
 
 		for (let i = startIndex; i < endIndex; i++) {
 			const model = filteredModels[i];
 			if (!model) continue;
 
 			const isFav = isFavorite(favoriteSet, model);
-			const section: "favorites" | "all" = isFav ? "favorites" : "all";
+			const section: Section = isFav ? "favorites" : "all";
 			if (section !== lastSection) {
 				if (lastSection !== null) listContainer.addChild(new Spacer(1));
-				const label = section === "favorites" ? "  ── Favorites ──" : "  ── All models ──";
-				listContainer.addChild(new Text(label, 0, 0));
+				listContainer.addChild(new Text(sectionLabel(section), 0, 0));
 				lastSection = section;
 			}
 
 			const isSelected = i === selectedIndex;
 			const isCurrent = modelsAreEqual(currentModel, model);
-
-			const cursor = isSelected ? "→ " : "  ";
-			const favMark = isFav ? "★ " : "  ";
-			const currentMark = isCurrent ? "✓ " : "  ";
-			const idText = isSelected ? `\x1b[36m${model.id}\x1b[0m` : model.id;
-			const providerText = `[${model.provider}]`;
-
-			listContainer.addChild(new Text(`${cursor}${favMark}${currentMark}${idText} ${providerText}`, 0, 0));
+			listContainer.addChild(
+				new Text(
+					formatModelRow(model, { selected: isSelected, favorite: isFav, current: isCurrent }),
+					0,
+					0,
+				),
+			);
 		}
 
 		if (startIndex > 0 || endIndex < filteredModels.length) {
@@ -262,7 +298,7 @@ function createSelector(
 		rebuildDisplayModels();
 		filterModels(searchInput.getValue());
 		// Keep the cursor on the same model after it (possibly) moved sections.
-		selectedIndex = Math.max(0, filteredModels.findIndex((m) => modelKey(m) === key));
+		selectedIndex = Math.max(0, indexOfKey(filteredModels, key));
 		applyHeader();
 		renderList();
 		onFavoriteChange();
@@ -327,7 +363,7 @@ async function openSelector(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	favoriteList: string[],
-): Promise<Model | null> {
+): Promise<Model<Api> | null> {
 	const allModels = ctx.modelRegistry.getAvailable();
 	if (allModels.length === 0) {
 		ctx.ui.notify("No available models. Run /login first.", "warning");
@@ -336,13 +372,13 @@ async function openSelector(
 
 	return new Promise((resolve) => {
 		let settled = false;
-		const finish = (value: Model | null) => {
+		const finish = (value: Model<Api> | null) => {
 			if (settled) return;
 			settled = true;
 			resolve(value);
 		};
 
-		void ctx.ui.custom<Model | null>((tui, _theme, _kb, done) => {
+		void ctx.ui.custom<Model<Api> | null>((tui, _theme, _kb, done) => {
 			return createSelector(
 				tui,
 				ctx,
@@ -367,13 +403,10 @@ async function openSelector(
 					done(result.model);
 					finish(result.model);
 				},
-				() => {
-					try {
-						saveFavorites(favoriteList);
-					} catch (error) {
+				() =>
+					persistFavorites(favoriteList, (error) => {
 						ctx.ui.notify(`Failed to save ${STORAGE_FILENAME}: ${String(error)}`, "error");
-					}
-				},
+					}),
 			);
 		});
 	});
@@ -406,10 +439,8 @@ export default function favoriteModelsExtension(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", () => {
-		try {
-			saveFavorites(favoriteList);
-		} catch (error) {
+		persistFavorites(favoriteList, (error) => {
 			console.error(`Failed to save ${STORAGE_FILENAME}:`, error);
-		}
+		});
 	});
 }
