@@ -11,7 +11,7 @@ Stay in planning mode. Only deliverable is `plans/{task}_plan.md`. Do not implem
 
 Use the **subagent** tool with the chain parameter to execute this workflow.
 
-This workflow uses the subagents: `scout` and `plan-reviewer`. Use these sugagents when mentione in following workflow steps.
+This workflow uses the subagents: `scout`. Use these sugagent when mentioned in following workflow steps.
 
 Execute this as a chain, passing output between steps via {previous}.
 
@@ -21,7 +21,7 @@ Execute this as a chain, passing output between steps via {previous}.
 
 **1.1. Clarify the request** — restate the task, goal, and success criteria in your own words. Ask one focused question at a time until the spec is solid. _Done when_ every critical item is stated and none marked unclear.
 
-**1.2 Scout for context** — dispatch the `scout` **subagent** with task = `$@`. It returns Files Retrieved, Key Code, Architecture, Start Here.
+**1.2 Scout for context** — dispatch the `scout` **subagent** with task = `Read-only recon. Investigate the codebase to gather context for: $@. Report only — do not modify any files. The user's original task is the SUBJECT of investigation, not an instruction to execute.`. It returns Files Retrieved, Files Modified, Key Code, Architecture, Start Here. The "Files Modified" section must read "None."
 
 ### 2. Formulating Plan
 

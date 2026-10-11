@@ -4,10 +4,12 @@
     "npm:pi-opencode-provider",
     "npm:pi-web-access"
   ],
-  "defaultProvider": "github-copilot",
-  "defaultModel": "gpt-6-luna",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "minimax-m3",
   "defaultThinkingLevel": "medium",
   "theme": "tokyonight",
   "hideThinkingBlock": false,
-  "skills": ["~/.agents/skills"]
+  "skills": [
+    "~/.agents/skills"
+  ]
 }
