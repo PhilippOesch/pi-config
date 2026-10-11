@@ -18,18 +18,18 @@
  *
  * Usage:
  *   /fmodel               Open the favorites-first model selector
- *   Ctrl+Shift+L          Same selector
+ *   Ctrl+L                Same selector (replaces the built-in model selector)
  *
  * In the selector (nav mode is the default):
- *   ↑/↓ or k/j           Move selection
+ *   ↑/↓ or Ctrl+N / Ctrl+P   Move selection
  *   Space                Toggle favorite on the selected row
  *   Enter                Switch to the selected model
  *   /                    Enter search mode and filter the list
  *   Esc / Ctrl+C         Cancel
  *
  * In search mode (entered with /):
- *   Any character        Add to the filter (j/k type as literals, filter
- *                        also matches tier name like "high" or "free")
+ *   Any character        Add to the filter (matches id, provider, name,
+ *                        tier; Ctrl+N / Ctrl+P are ignored as nav keys)
  *   Backspace            Remove the last filter char
  *   Enter                Switch to the selected model
  *   Esc                  Leave search mode (filter stays applied)
@@ -58,7 +58,7 @@ import {
 const STORAGE_FILENAME = "favorite-models.json";
 const STORAGE_VERSION = 1;
 const MAX_VISIBLE = 10;
-const SHORTCUT = Key.ctrlShift("l");
+const SHORTCUT = Key.ctrl("l");
 const STATUS_KEY = "tier";
 
 /** Cost tiers from cheapest to most expensive, plus `unknown` for gaps. */
@@ -104,6 +104,25 @@ const MODEL_TIERS: Record<string, Tier> = {
 	"space-bunny": "low",
 	"step-5-preview-free": "free",
 };
+
+/**
+ * ANSI 256-color escape for each tier label. Picked for dark terminals: every
+ * tone clears 4:1 contrast against a typical #1e1e1e background. The literal
+ * tier word stays the primary signal; color is reinforcement.
+ */
+const TIER_COLORS: Record<Tier, string> = {
+	free: "\x1b[38;5;42m", // emerald
+	low: "\x1b[38;5;137m", // bronze
+	mid: "\x1b[38;5;250m", // silver
+	high: "\x1b[38;5;178m", // gold
+	maxi: "\x1b[38;5;220m", // bright gold (one rung above high)
+	unknown: "\x1b[38;5;244m", // dim gray
+};
+
+/** Wrap a tier name in its color escape; the tier word is the colored element. */
+function colorTier(tier: Tier): string {
+	return `${TIER_COLORS[tier]}${tier}\x1b[0m`;
+}
 
 /** Classify a model into a cost tier by looking up its id in the tier map. */
 function classify(model: Pick<Model<Api>, "id">): Tier {
@@ -321,7 +340,7 @@ function createSelector(
 				inputFormatted || outputFormatted
 					? ` · ${inputFormatted || "—"}/${outputFormatted || "—"}`
 					: "";
-			const tierText = `· ${tier}${pricePart}`;
+			const tierText = `· ${colorTier(tier)}${pricePart}`;
 
 			listContainer.addChild(
 				new Text(`${cursor}${favMark}${currentMark}${idText} ${providerText} ${tierText}`, 0, 0),
@@ -424,6 +443,11 @@ function createSelector(
 				onResult({ kind: "cancel" });
 				return;
 			}
+			// Ctrl+N / Ctrl+P are nav keys; ignore them in search mode so the
+			// user can type freely.
+			if (matchesKey(data, Key.ctrl("n")) || matchesKey(data, Key.ctrl("p"))) {
+				return;
+			}
 			// Enter is handled by the Input's onSubmit callback below; everything
 			// else (chars, backspace, arrows for cursor positioning) goes to it.
 			searchInput.handleInput(data);
@@ -432,15 +456,16 @@ function createSelector(
 			return;
 		}
 
-		// Nav mode: j/k and arrows move, space toggles favorite, '/' enters
-		// search, enter selects, esc cancels. Other keys are ignored so the
-		// user can safely type letters without accidentally filtering.
-		if (matchesKey(data, Key.up) || data === "k") {
+		// Nav mode: Ctrl+N / Ctrl+P (and arrow keys) move, space toggles
+		// favorite, '/' enters search, enter selects, esc cancels. Other keys
+		// are ignored so the user can safely type letters without accidentally
+		// filtering.
+		if (matchesKey(data, Key.up) || matchesKey(data, Key.ctrl("p"))) {
 			moveSelection(-1);
 			tui.requestRender();
 			return;
 		}
-		if (matchesKey(data, Key.down) || data === "j") {
+		if (matchesKey(data, Key.down) || matchesKey(data, Key.ctrl("n"))) {
 			moveSelection(1);
 			tui.requestRender();
 			return;
@@ -532,9 +557,9 @@ function renderStatus(model: Pick<Model<Api>, "id" | "cost">): string {
 	const outputFormatted = formatCost(model.cost?.output);
 
 	if (inputFormatted || outputFormatted) {
-		return `tier:${tier} ${model.id} · ${inputFormatted || "—"}/${outputFormatted || "—"}`;
+		return `tier:${colorTier(tier)} ${model.id} · ${inputFormatted || "—"}/${outputFormatted || "—"}`;
 	}
-	return `tier:${tier} ${model.id}`;
+	return `tier:${colorTier(tier)} ${model.id}`;
 }
 
 function updateStatus(ctx: ExtensionContext): void {
