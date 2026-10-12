@@ -3,7 +3,7 @@ import type {
   AgentToolUpdateCallback,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { mapLimit } from "../shared/utils.ts";
+import { mapLimit } from "../../../shared/utils.ts";
 import {
   createEmptyUsage,
   EXIT_CODE,
@@ -13,16 +13,16 @@ import {
   type OnUpdateCallback,
   type SingleResult,
   type SubAgentToolContext,
-} from "./types.ts";
-import { type ClassifiedParams } from "./validation.ts";
-import { runAgent } from "./agentRunner.ts";
+} from "../schema/types.ts";
+import { type ClassifiedParams } from "../schema/validation.ts";
+import { runAgent } from "../runner/agentRunner.ts";
 import {
   createTextResult,
   getFinalOutput,
   getResultOutput,
   isFailedResult,
   truncateParallelOutput,
-} from "./result.ts";
+} from "../result/result.ts";
 
 const MAX_PREVIOUS_OUTPUT_CHARS = 4000;
 

@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RunJournal } from "./runJournal.ts";
-import type { SingleResult, SubAgentToolContext } from "./types.ts";
+import type { SingleResult, SubAgentToolContext } from "../schema/types.ts";
 
 const context = {
   config: { invocationId: "chain-123", totalSteps: 3 },

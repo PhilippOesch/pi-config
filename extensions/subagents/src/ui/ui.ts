@@ -1,6 +1,6 @@
 import { Theme } from "@earendil-works/pi-coding-agent";
-import { isFailedResult, type SingleResult } from "./result.ts";
-import { EXIT_CODE } from "./types.ts";
+import { isFailedResult, type SingleResult } from "../result/result.ts";
+import { EXIT_CODE } from "../schema/types.ts";
 
 export function createUi(theme: Theme) {
   const icons = {

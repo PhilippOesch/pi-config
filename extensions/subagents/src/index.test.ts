@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import register from "./index.ts";
-import { shutdownAgents } from "./agentRunner.ts";
+import { shutdownAgents } from "./runner/agentRunner.ts";
 
-vi.mock("./agentRunner.ts", () => ({
+vi.mock("./runner/agentRunner.ts", () => ({
   shutdownAgents: vi.fn(),
   runAgent: vi.fn(),
 }));

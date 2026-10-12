@@ -18,12 +18,12 @@ import {
   type ExtensionAPI,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
-import { registerAwareness } from "./awareness.ts";
-import { shutdownAgents } from "./agentRunner.ts";
-import { SubagentDispatch } from "./dispatch.ts";
-import { createTextResult } from "./result.ts";
-import { renderCall, renderResult } from "./render.ts";
-import { SubagentParams } from "./types.ts";
+import { registerAwareness } from "./discovery/awareness.ts";
+import { shutdownAgents } from "./runner/agentRunner.ts";
+import { SubagentDispatch } from "./strategy/dispatch.ts";
+import { createTextResult } from "./result/result.ts";
+import { renderCall, renderResult } from "./ui/render.ts";
+import { SubagentParams } from "./schema/types.ts";
 
 export default function (pi: ExtensionAPI) {
   registerAwareness(pi);

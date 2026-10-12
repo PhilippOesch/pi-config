@@ -13,8 +13,8 @@ import {
   type SingleResult,
   type SubAgentToolContext,
   type SubagentDetails,
-} from "./types.ts";
-import type { AgentConfig } from "./agents.ts";
+} from "../schema/types.ts";
+import type { AgentConfig } from "../discovery/agents.ts";
 
 class FakeProcessAdapter {
   events: ProcessEvent[] = [];

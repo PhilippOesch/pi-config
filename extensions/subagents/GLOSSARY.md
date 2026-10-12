@@ -2,7 +2,7 @@
 
 ## SubagentDispatch
 
-The module that orchestrates a single subagent tool invocation. It owns parameter validation, confirmation gating, strategy selection, and result assembly. `index.ts` is a thin adapter that registers the tool and delegates execution to `SubagentDispatch`.
+The module that orchestrates a single subagent tool invocation. It owns parameter validation, confirmation gating, strategy selection, and result assembly. `src/index.ts` is a thin adapter that registers the tool and delegates execution to `SubagentDispatch`.
 
 ## AgentRunner
 

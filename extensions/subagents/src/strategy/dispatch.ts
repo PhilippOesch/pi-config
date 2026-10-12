@@ -8,17 +8,21 @@ import type {
   AgentToolUpdateCallback,
 } from "@earendil-works/pi-agent-core";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
-import { isReadModeActive } from "../shared/utils.ts";
+import {
+  type AgentConfig,
+  type AgentScope,
+  discoverAgents,
+} from "../discovery/agents.ts";
+import { isReadModeActive } from "../../../shared/utils.ts";
 import { strategies } from "./agentStrategy.ts";
-import { truncate } from "./format.ts";
+import { truncate } from "../result/format.ts";
 import {
   type SingleResult,
   type SubAgentToolContext,
   type SubagentConfig,
   type SubagentToolParams,
-} from "./types.ts";
-import { classifyParams, type ValidationError } from "./validation.ts";
+} from "../schema/types.ts";
+import { classifyParams, type ValidationError } from "../schema/validation.ts";
 
 function formatAvailableAgents(config: SubagentConfig): string {
   return (

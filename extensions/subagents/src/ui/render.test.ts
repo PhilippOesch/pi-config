@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Theme } from "@earendil-works/pi-coding-agent";
 import { formatProgress, renderResult } from "./render.ts";
 import { createUi } from "./ui.ts";
-import type { SingleResult } from "./types.ts";
+import type { SingleResult } from "../schema/types.ts";
 
 const theme = {
   fg: (_color: string, text: string) => text,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { strategies } from "./agentStrategy.ts";
-import { runAgent } from "./agentRunner.ts";
-import * as sharedUtils from "../shared/utils.ts";
+import { runAgent } from "../runner/agentRunner.ts";
+import * as sharedUtils from "../../../shared/utils.ts";
 import {
   EXIT_CODE,
   MAX_CONCURRENCY,
@@ -9,12 +9,12 @@ import {
   type SingleResult,
   type SubAgentToolContext,
   type SubagentDetails,
-} from "./types.ts";
+} from "../schema/types.ts";
 import type { Message } from "@earendil-works/pi-ai";
-import type { ClassifiedParams } from "./validation.ts";
+import type { ClassifiedParams } from "../schema/validation.ts";
 
-vi.mock("./agentRunner.ts");
-vi.mock("../shared/utils.ts", async (importOriginal) => {
+vi.mock("../runner/agentRunner.ts");
+vi.mock("../../../shared/utils.ts", async (importOriginal) => {
   const original = await importOriginal<typeof sharedUtils>();
   return {
     ...original,

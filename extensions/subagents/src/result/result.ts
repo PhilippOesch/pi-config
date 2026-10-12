@@ -5,7 +5,7 @@ import {
   PER_TASK_OUTPUT_CAP,
   type SingleResult,
   type SubAgentToolContext,
-} from "./types.ts";
+} from "../schema/types.ts";
 
 export type { SingleResult };
 

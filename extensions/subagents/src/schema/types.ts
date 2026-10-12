@@ -5,7 +5,10 @@ import type {
 } from "@earendil-works/pi-agent-core";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type, type Static } from "typebox";
-import type { AgentConfig, AgentScope as AgentScopeType } from "./agents.ts";
+import type {
+  AgentConfig,
+  AgentScope as AgentScopeType,
+} from "../discovery/agents.ts";
 
 export type AgentScope = AgentScopeType;
 

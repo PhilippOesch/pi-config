@@ -14,7 +14,7 @@ import {
   type SingleResult,
   type SubAgentToolContext,
   type SubagentDetails,
-} from "./types.ts";
+} from "../schema/types.ts";
 
 const makeMessage = (
   role: Message["role"],

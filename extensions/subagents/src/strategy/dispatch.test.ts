@@ -2,13 +2,13 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import { SubagentDispatch, type ConfirmationAdapter } from "./dispatch.ts";
-import * as agentsModule from "./agents.ts";
-import * as sharedUtils from "../shared/utils.ts";
+import * as agentsModule from "../discovery/agents.ts";
+import * as sharedUtils from "../../../shared/utils.ts";
 import * as agentStrategy from "./agentStrategy.ts";
-import { type SubagentToolParams } from "./types.ts";
-import type { AgentConfig } from "./agents.ts";
+import { type SubagentToolParams } from "../schema/types.ts";
+import type { AgentConfig } from "../discovery/agents.ts";
 
-vi.mock("./agents.ts", async (importOriginal) => {
+vi.mock("../discovery/agents.ts", async (importOriginal) => {
   const original = await importOriginal<typeof agentsModule>();
   return {
     ...original,
@@ -16,7 +16,7 @@ vi.mock("./agents.ts", async (importOriginal) => {
   };
 });
 
-vi.mock("../shared/utils.ts", async (importOriginal) => {
+vi.mock("../../../shared/utils.ts", async (importOriginal) => {
   const original = await importOriginal<typeof sharedUtils>();
   return {
     ...original,

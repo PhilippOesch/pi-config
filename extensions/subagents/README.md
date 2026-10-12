@@ -17,8 +17,15 @@ Delegate tasks to specialized subagents with isolated context windows.
 ```
 subagent/
 ├── README.md            # This file
-├── index.ts             # The extension (entry point)
-├── agents.ts            # Agent discovery logic
+├── src/                 # TypeScript source
+│   ├── index.ts         # The extension (entry point)
+│   ├── discovery/       # Agent discovery and parent-agent awareness
+│   ├── schema/          # Shared types, schema, and parameter validation
+│   ├── runner/          # Child-process lifecycle and run diagnostics
+│   ├── strategy/        # Mode orchestration and dispatch gate
+│   ├── result/          # Output shaping and formatting helpers
+│   ├── ui/              # TUI presentation
+│   └── tests/shared/    # Test for shared extension code
 ├── agents/              # Sample agent definitions
 │   ├── scout.md         # Fast recon, returns compressed context
 │   ├── planner.md       # Creates implementation plans
@@ -37,8 +44,8 @@ From the repository root, symlink the files:
 ```bash
 # Symlink the extension (must be in a subdirectory with index.ts)
 mkdir -p ~/.pi/agent/extensions/subagent
-ln -sf "$(pwd)/packages/coding-agent/examples/extensions/subagent/index.ts" ~/.pi/agent/extensions/subagent/index.ts
-ln -sf "$(pwd)/packages/coding-agent/examples/extensions/subagent/agents.ts" ~/.pi/agent/extensions/subagent/agents.ts
+ln -sf "$(pwd)/packages/coding-agent/examples/extensions/subagent/src/index.ts" ~/.pi/agent/extensions/subagent/index.ts
+ln -sf "$(pwd)/packages/coding-agent/examples/extensions/subagent/src/discovery/agents.ts" ~/.pi/agent/extensions/subagent/agents.ts
 
 # Symlink agents
 mkdir -p ~/.pi/agent/agents
@@ -122,7 +129,7 @@ Pass `timeoutSeconds` to set an optional **per-child** wall-clock deadline (also
 
 Failures return `isError: true` without suppressing the parent's recovery turn. Permission-gate termination behavior is unchanged. No automatic model failover or live-model calls are required by the lifecycle tests.
 
-Implementation is split across `agentRunner.ts` (events/state), `process.ts` (child lifecycle), `runJournal.ts` (private persistence), `agentStrategy.ts` (orchestration), and `render.ts` (display).
+Implementation is split across `src/runner/agentRunner.ts` (events/state), `src/runner/process.ts` (child lifecycle), `src/runner/runJournal.ts` (private persistence), `src/strategy/agentStrategy.ts` (orchestration), and `src/ui/render.ts` (display).
 
 ## Output Display
 

@@ -16,10 +16,10 @@ import {
   type OnUpdateCallback,
   type SingleResult,
   type SubAgentToolContext,
-} from "./types.ts";
-import { getFinalOutput } from "./result.ts";
-import { errorMessage } from "../shared/utils.ts";
-import type { AgentConfig } from "./agents.ts";
+} from "../schema/types.ts";
+import { getFinalOutput } from "../result/result.ts";
+import { errorMessage } from "../../../shared/utils.ts";
+import type { AgentConfig } from "../discovery/agents.ts";
 import {
   SpawnSubagentProcessAdapter,
   type ProcessEvent,

@@ -8,15 +8,15 @@ import {
   type SingleResult,
   type SubagentDetails,
   type SubagentToolParams,
-} from "./types.ts";
+} from "../schema/types.ts";
 import { createUi } from "./ui.ts";
-import { formatToolCall, formatUsageStats } from "./format.ts";
+import { formatToolCall, formatUsageStats } from "../result/format.ts";
 import {
   getDisplayItems,
   getFinalOutput,
   isFailedResult,
   type DisplayItem,
-} from "./result.ts";
+} from "../result/result.ts";
 
 export function renderCall(
   args: SubagentToolParams,

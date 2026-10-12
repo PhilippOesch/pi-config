@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { buildSpawnEnv } from "./awareness.ts";
+import { buildSpawnEnv } from "../discovery/awareness.ts";
 
 export type ProcessEvent =
   | { type: "spawn"; pid: number }

@@ -2,8 +2,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { StringDecoder } from "node:string_decoder";
-import type { SingleResult, SubAgentToolContext } from "./types.ts";
-import { getFinalOutput } from "./result.ts";
+import type { SingleResult, SubAgentToolContext } from "../schema/types.ts";
+import { getFinalOutput } from "../result/result.ts";
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_REPORT_BYTES = 1024 * 1024;
