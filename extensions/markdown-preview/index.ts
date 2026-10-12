@@ -15,10 +15,11 @@
  *     `~/.pi/agent/extensions/`). Use `/reload` in pi if it was added while running.
  */
 
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { readFile, writeFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { promisify } from "node:util";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { marked } from "marked";
 import { Type } from "typebox";
@@ -111,7 +112,16 @@ function escapeHtml(text: string): string {
     .replace(/'/g, "&#039;");
 }
 
+const execFileAsync = promisify(execFile);
+
+function isWslEnvironment(process: NodeJS.Process): boolean {
+  return Boolean(process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP);
+}
+
 function getPlatformOpenCommand(process: NodeJS.Process): string {
+  if (isWslEnvironment(process)) {
+    return "explorer.exe";
+  }
   if (process.platform == "win32") {
     return "start";
   }
@@ -122,13 +132,44 @@ function getPlatformOpenCommand(process: NodeJS.Process): string {
 }
 
 async function openBrowser(filePath: string): Promise<void> {
+  const isWsl = isWslEnvironment(process);
   const command = getPlatformOpenCommand(process);
+  let targetPath = filePath;
+
+  if (isWsl) {
+    const { stdout } = await execFileAsync("wslpath", ["-w", filePath], {
+      encoding: "utf8",
+    });
+    targetPath = stdout.trim();
+    if (!targetPath) {
+      throw new Error(`wslpath returned an empty path for "${filePath}"`);
+    }
+  }
+
   return new Promise((resolve, reject) => {
-    const child = spawn(command, [filePath], {
-      detached: true,
+    const child = spawn(command, [targetPath], {
+      detached: !isWsl,
       stdio: "ignore",
     });
     child.on("error", reject);
+
+    if (isWsl) {
+      child.on("close", (code, signal) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(
+            new Error(
+              `${command} exited with ${
+                code === null ? `signal ${signal}` : `code ${code}`
+              }`,
+            ),
+          );
+        }
+      });
+      return;
+    }
+
     child.on("spawn", () => {
       child.unref();
       resolve();
