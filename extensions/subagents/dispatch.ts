@@ -2,6 +2,7 @@
  * SubagentDispatch - orchestrate a single subagent tool invocation.
  */
 
+import { randomUUID } from "node:crypto";
 import type {
   AgentToolResult,
   AgentToolUpdateCallback,
@@ -102,6 +103,9 @@ export class SubagentDispatch {
       confirmProjectAgents: this.params.confirmProjectAgents ?? true,
       mode: this.inferMode(this.params),
       requestedAgentNames: this.extractAgentNames(),
+      totalSteps: this.params.chain?.length || this.params.tasks?.length || 1,
+      invocationId: randomUUID(),
+      timeoutSeconds: this.params.timeoutSeconds,
     };
   }
 
@@ -120,6 +124,7 @@ export class SubagentDispatch {
           agentScope: config.agentScope,
           projectAgentsDir: config.projectAgentsDir,
           results,
+          totalSteps: config.totalSteps,
         }),
       },
     };

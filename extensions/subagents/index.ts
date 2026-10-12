@@ -19,6 +19,7 @@ import {
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { registerAwareness } from "./awareness.ts";
+import { shutdownAgents } from "./agentRunner.ts";
 import { SubagentDispatch } from "./dispatch.ts";
 import { createTextResult } from "./result.ts";
 import { renderCall, renderResult } from "./render.ts";
@@ -26,9 +27,12 @@ import { SubagentParams } from "./types.ts";
 
 export default function (pi: ExtensionAPI) {
   registerAwareness(pi);
+  pi.on("session_shutdown", () => shutdownAgents());
 
   pi.registerTool({
     name: "subagent",
+    // Codemode does not forward nested onUpdate; keep orchestration visible.
+    exposure: "model-only",
     label: "Subagent",
     description: [
       "Delegate tasks to specialized subagents with isolated context.",

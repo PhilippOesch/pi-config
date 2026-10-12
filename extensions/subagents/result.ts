@@ -13,9 +13,11 @@ export function getFinalOutput(messages: Message[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role === "assistant") {
-      for (const part of msg.content) {
-        if (part.type === "text") return part.text;
-      }
+      const text = msg.content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("\n");
+      if (text) return text;
     }
   }
   return "";
@@ -92,15 +94,25 @@ export function createTextResult(
   text: string,
   results: SingleResult[],
   terminate: boolean = false,
+  isError: boolean = false,
 ): AgentToolResult<unknown> {
+  const paths = results.flatMap((r) =>
+    r.manifestPath
+      ? [`${r.agent}${r.step ? ` (step ${r.step})` : ""}: ${r.manifestPath}`]
+      : [],
+  );
+  const diagnostics = paths.length
+    ? `\n\nRun diagnostics:\n${paths.join("\n")}`
+    : "";
   return {
     content: [
       {
         type: "text",
-        text,
+        text: text + diagnostics,
       },
     ],
     details: subAgentContext.details.make(results),
-    terminate: terminate,
+    terminate,
+    ...(isError ? { isError: true } : {}),
   };
 }

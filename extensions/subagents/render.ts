@@ -164,7 +164,7 @@ function renderResultItem(
   return container;
 }
 
-export function renderResult(
+function renderResultBody(
   result: AgentToolResult<unknown>,
   { expanded }: { expanded: boolean },
   theme: Theme,
@@ -247,10 +247,15 @@ export function renderResult(
 
   if (details.mode === "chain") {
     const successCount = details.results.filter(
-      (r) => r.exitCode === EXIT_CODE.SUCCESS,
+      (r) => r.exitCode === EXIT_CODE.SUCCESS && !isFailedResult(r),
     ).length;
-    const icon =
-      successCount === details.results.length
+    const totalSteps = details.totalSteps ?? details.results.length;
+    const running = details.results.some(
+      (r) => r.exitCode === EXIT_CODE.RUNNING,
+    );
+    const icon = running
+      ? ui.icons.waiting()
+      : successCount === totalSteps
         ? ui.icons.success()
         : ui.icons.error();
 
@@ -261,10 +266,7 @@ export function renderResult(
           icon +
             " " +
             theme.fg("toolTitle", theme.bold("chain ")) +
-            theme.fg(
-              "accent",
-              `${successCount}/${details.results.length} steps`,
-            ),
+            theme.fg("accent", `${successCount}/${totalSteps} steps`),
           0,
           0,
         ),
@@ -291,7 +293,7 @@ export function renderResult(
       icon +
       " " +
       theme.fg("toolTitle", theme.bold("chain ")) +
-      theme.fg("accent", `${successCount}/${details.results.length} steps`);
+      theme.fg("accent", `${successCount}/${totalSteps} steps`);
     for (const r of details.results) {
       const rIcon = ui.icons.singleResultToIcon(r);
       const displayItems = getDisplayItems(r.messages);
@@ -308,22 +310,23 @@ export function renderResult(
 
   if (details.mode === "parallel") {
     const running = details.results.filter(
-      (r) => r.exitCode === EXIT_CODE.RUNNING,
+      (r) => r.exitCode === EXIT_CODE.RUNNING && r.phase !== "queued",
     ).length;
+    const queued = details.results.filter((r) => r.phase === "queued").length;
     const successCount = details.results.filter(
       (r) => r.exitCode !== EXIT_CODE.RUNNING && !isFailedResult(r),
     ).length;
     const failCount = details.results.filter(
       (r) => r.exitCode !== EXIT_CODE.RUNNING && isFailedResult(r),
     ).length;
-    const isRunning = running > 0;
+    const isRunning = running > 0 || queued > 0;
     const icon = isRunning
       ? ui.icons.waiting()
       : failCount > 0
         ? ui.icons.partialFail()
         : ui.icons.success();
     const status = isRunning
-      ? `${successCount + failCount}/${details.results.length} done, ${running} running`
+      ? `${successCount + failCount}/${details.results.length} done, ${running} running, ${queued} queued`
       : `${successCount}/${details.results.length} tasks`;
 
     if (expanded && !isRunning) {
@@ -375,4 +378,50 @@ export function renderResult(
 
   const text = result.content[0];
   return new Text(text?.type === "text" ? text.text : "(no output)", 0, 0);
+}
+
+export function formatProgress(result: SingleResult, now = Date.now()): string {
+  if (result.startedAt == null) return `${result.agent}: queued`;
+  const elapsed = Math.max(
+    0,
+    Math.floor(((result.endedAt ?? now) - result.startedAt) / 1000),
+  );
+  const idle = Math.max(
+    0,
+    Math.floor(
+      ((result.endedAt ?? now) - (result.lastActivityAt ?? result.startedAt)) /
+        1000,
+    ),
+  );
+  const tools = Object.values(result.activeTools ?? {}).join(", ");
+  return `${result.agent}${result.step ? ` step ${result.step}` : ""}: ${result.phase ?? "running"}${tools ? ` (${tools})` : ""} · ${elapsed}s elapsed · last activity ${idle}s ago${result.pid ? ` · PID ${result.pid}` : ""}${result.model ? ` · ${result.model}` : ""}`;
+}
+
+export function renderResult(
+  result: AgentToolResult<unknown>,
+  options: { expanded: boolean },
+  theme: Theme,
+  context: unknown,
+) {
+  const body = renderResultBody(result, options, theme, context);
+  const details = result.details as SubagentDetails | undefined;
+  if (!details?.results.some((r) => r.startedAt != null)) return body;
+  const container = new Container();
+  for (const r of details.results) {
+    container.addChild(new Text(theme.fg("muted", formatProgress(r)), 0, 0));
+    if (r.manifestPath)
+      container.addChild(
+        new Text(theme.fg("dim", `Diagnostics: ${r.manifestPath}`), 0, 0),
+      );
+    if (r.diagnosticsError)
+      container.addChild(
+        new Text(
+          theme.fg("warning", `Diagnostics unavailable: ${r.diagnosticsError}`),
+          0,
+          0,
+        ),
+      );
+  }
+  container.addChild(body);
+  return container;
 }

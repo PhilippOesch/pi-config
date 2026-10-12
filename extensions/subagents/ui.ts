@@ -1,5 +1,6 @@
 import { Theme } from "@earendil-works/pi-coding-agent";
 import { isFailedResult, type SingleResult } from "./result.ts";
+import { EXIT_CODE } from "./types.ts";
 
 export function createUi(theme: Theme) {
   const icons = {
@@ -8,7 +9,11 @@ export function createUi(theme: Theme) {
     waiting: () => theme.fg("warning", "⏳"),
     partialFail: () => theme.fg("warning", "◐"),
     singleResultToIcon: (r: SingleResult) =>
-      isFailedResult(r) ? icons.error() : icons.success(),
+      r.exitCode === EXIT_CODE.RUNNING
+        ? icons.waiting()
+        : isFailedResult(r)
+          ? icons.error()
+          : icons.success(),
   };
 
   return {

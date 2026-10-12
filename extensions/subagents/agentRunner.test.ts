@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import type { Model, Api } from "@earendil-works/pi-ai";
 import {
   AgentRunner,
@@ -81,10 +83,16 @@ const exitEvent = (code: number): ProcessEvent => ({ type: "exit", code });
 describe("AgentRunner", () => {
   let adapter: FakeProcessAdapter;
   let runner: AgentRunner;
+  let runsDirectory: string;
 
   beforeEach(() => {
+    runsDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-test-"));
     adapter = new FakeProcessAdapter();
-    runner = new AgentRunner(adapter);
+    runner = new AgentRunner(adapter, { runsDirectory, heartbeatMs: 20 });
+  });
+  afterEach(async () => {
+    await runner.shutdown();
+    fs.rmSync(runsDirectory, { recursive: true, force: true });
   });
 
   it("returns an error for an unknown agent without running", async () => {
@@ -273,6 +281,310 @@ describe("AgentRunner", () => {
 
     expect(result.stderr).toBe("something went wrong\n");
     expect(result.exitCode).toBe(EXIT_CODE.FAILED);
+  });
+
+  it("streams live phases and PID before exit without treating them as success", async () => {
+    adapter.events = [
+      { type: "spawn", pid: 123 },
+      stdoutEvent(
+        JSON.stringify({
+          type: "message_update",
+          assistantMessageEvent: {
+            type: "thinking_delta",
+            delta: "private reasoning",
+          },
+        }),
+      ),
+      stdoutEvent(
+        JSON.stringify({
+          type: "tool_execution_start",
+          toolCallId: "t1",
+          toolName: "bash",
+        }),
+      ),
+      stdoutEvent(JSON.stringify({ type: "auto_retry_start" })),
+      stdoutEvent(JSON.stringify({ type: "compaction_start" })),
+      stdoutEvent(JSON.stringify({ type: "agent_settled", aborted: false })),
+      exitEvent(0),
+    ];
+    const updates: SingleResult[] = [];
+    const result = await runner.runAgent(
+      makeCtx([makeAgent()]),
+      "worker",
+      "task",
+      undefined,
+      1,
+      undefined,
+      (update) => updates.push(update.details.results[0]!),
+    );
+    expect(updates.map((r) => r.phase)).toEqual([
+      "starting",
+      "starting",
+      "thinking",
+      "tool",
+      "retrying",
+      "compacting",
+      "finishing",
+      "completed",
+    ]);
+    expect(
+      updates.slice(0, -1).every((r) => r.exitCode === EXIT_CODE.RUNNING),
+    ).toBe(true);
+    expect(result.pid).toBe(123);
+    expect(fs.readFileSync(result.manifestPath!, "utf8")).not.toContain(
+      "private reasoning",
+    );
+  });
+
+  it("preserves a readable report and cancellation diagnostics", async () => {
+    const controller = new AbortController();
+    adapter.run.mockImplementation(async (_request, onEvent) => {
+      onEvent(
+        stdoutEvent(
+          JSON.stringify({
+            type: "message_end",
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: "Work saved in commit abc" }],
+            },
+          }),
+        ),
+      );
+      onEvent(
+        stdoutEvent(
+          JSON.stringify({
+            type: "tool_execution_start",
+            toolCallId: "t1",
+            toolName: "bash",
+          }),
+        ),
+      );
+      controller.abort();
+      onEvent({ type: "exit", code: null, signal: "SIGTERM" });
+    });
+    const result = await runner.runAgent(
+      makeCtx([makeAgent()]),
+      "worker",
+      "secret task",
+      undefined,
+      2,
+      controller.signal,
+    );
+    expect(result.phase).toBe("cancelled");
+    expect(result.exitCode).toBe(EXIT_CODE.FAILED);
+    expect(fs.readFileSync(result.reportPath!, "utf8")).toContain("commit abc");
+    const manifest = JSON.parse(fs.readFileSync(result.manifestPath!, "utf8"));
+    expect(manifest).toMatchObject({
+      phase: "cancelled",
+      exitSignal: "SIGTERM",
+      step: 2,
+    });
+    expect(manifest.endedAt).toBeDefined();
+    expect(manifest.activeTools).toEqual(["bash"]);
+    expect(JSON.stringify(manifest)).not.toContain("secret task");
+  });
+
+  it("does not launch a pre-aborted request", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const result = await runner.runAgent(
+      makeCtx([makeAgent()]),
+      "worker",
+      "task",
+      undefined,
+      undefined,
+      controller.signal,
+    );
+    expect(adapter.run).not.toHaveBeenCalled();
+    expect(result.phase).toBe("cancelled");
+  });
+
+  it("refreshes elapsed display without inventing child activity", async () => {
+    adapter.run.mockImplementation(async (_request, onEvent) => {
+      await new Promise((resolve) => setTimeout(resolve, 65));
+      onEvent(exitEvent(0));
+    });
+    const updates: SingleResult[] = [];
+    await runner.runAgent(
+      makeCtx([makeAgent()]),
+      "worker",
+      "task",
+      undefined,
+      undefined,
+      undefined,
+      (update) => updates.push(update.details.results[0]!),
+    );
+    expect(updates.length).toBeGreaterThanOrEqual(4);
+    expect(
+      new Set(updates.slice(0, -1).map((r) => r.lastActivityAt)).size,
+    ).toBe(1);
+  });
+
+  it("enforces an explicit per-child deadline and persists the reason", async () => {
+    adapter.run.mockImplementation(async (request, onEvent) => {
+      await new Promise<void>((resolve) =>
+        request.abortSignal!.addEventListener("abort", () => resolve(), {
+          once: true,
+        }),
+      );
+      onEvent({ type: "exit", code: null, signal: "SIGTERM" });
+    });
+    const context = makeCtx([makeAgent()]);
+    context.config.timeoutSeconds = 0.03;
+    const result = await runner.runAgent(context, "worker", "task");
+    expect(result.phase).toBe("failed");
+    expect(result.errorMessage).toContain("deadline");
+    expect(
+      JSON.parse(fs.readFileSync(result.manifestPath!, "utf8")).errorMessage,
+    ).toContain("deadline");
+  });
+
+  it("cancels active children on session shutdown", async () => {
+    let started!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    adapter.run.mockImplementation(async (request) => {
+      started();
+      await new Promise<void>((resolve) =>
+        request.abortSignal!.addEventListener("abort", () => resolve(), {
+          once: true,
+        }),
+      );
+    });
+    const run = runner.runAgent(makeCtx([makeAgent()]), "worker", "task");
+    await ready;
+    await runner.shutdown();
+    expect((await run).phase).toBe("cancelled");
+  });
+
+  it("bounds stderr and counts malformed lines", async () => {
+    adapter.events = [
+      { type: "stderr", data: "x".repeat(100_000) },
+      stdoutEvent("not json"),
+      exitEvent(1),
+    ];
+    const result = await runner.runAgent(
+      makeCtx([makeAgent()]),
+      "worker",
+      "task",
+    );
+    expect(result.stderr.length).toBe(16 * 1024);
+    expect(result.malformedLines).toBe(1);
+  });
+
+  it("tracks concurrent tool completion and does not settle on agent_end", async () => {
+    adapter.events = [
+      stdoutEvent(
+        JSON.stringify({
+          type: "tool_execution_start",
+          toolCallId: "a",
+          toolName: "read",
+        }),
+      ),
+      stdoutEvent(
+        JSON.stringify({
+          type: "tool_execution_start",
+          toolCallId: "b",
+          toolName: "bash",
+        }),
+      ),
+      stdoutEvent(
+        JSON.stringify({
+          type: "tool_execution_update",
+          toolCallId: "b",
+          toolName: "bash",
+        }),
+      ),
+      stdoutEvent(
+        JSON.stringify({ type: "tool_execution_end", toolCallId: "a" }),
+      ),
+      stdoutEvent(JSON.stringify({ type: "agent_end", willRetry: true })),
+    ];
+    adapter.run.mockImplementation(async (_request, onEvent) => {
+      for (const event of adapter.events) onEvent(event);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      onEvent(
+        stdoutEvent(
+          JSON.stringify({ type: "tool_execution_end", toolCallId: "b" }),
+        ),
+      );
+      onEvent(
+        stdoutEvent(JSON.stringify({ type: "agent_settled", aborted: false })),
+      );
+      onEvent(exitEvent(0));
+    });
+    const updates: SingleResult[] = [];
+    await runner.runAgent(
+      makeCtx([makeAgent()]),
+      "worker",
+      "task",
+      undefined,
+      undefined,
+      undefined,
+      (update) => updates.push(update.details.results[0]!),
+    );
+    expect(
+      updates.some(
+        (r) =>
+          r.phase === "tool" &&
+          JSON.stringify(r.activeTools) === '{"b":"bash"}' &&
+          r.exitCode === EXIT_CODE.RUNNING,
+      ),
+    ).toBe(true);
+    expect(updates.at(-1)?.activeTools).toEqual({});
+  });
+
+  it("clears a transient provider error after a successful retry", async () => {
+    adapter.events = [
+      stdoutEvent(
+        JSON.stringify({
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [],
+            stopReason: "error",
+            errorMessage: "rate limited",
+          },
+        }),
+      ),
+      stdoutEvent(JSON.stringify({ type: "auto_retry_start" })),
+      stdoutEvent(JSON.stringify({ type: "auto_retry_end", success: true })),
+      stdoutEvent(
+        JSON.stringify({
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "done" }],
+            stopReason: "stop",
+          },
+        }),
+      ),
+      exitEvent(0),
+    ];
+    const result = await runner.runAgent(
+      makeCtx([makeAgent()]),
+      "worker",
+      "task",
+    );
+    expect(result.phase).toBe("completed");
+    expect(result.errorMessage).toBeUndefined();
+  });
+
+  it("reports diagnostics write failures without losing successful work", async () => {
+    const file = path.join(runsDirectory, "not-a-directory");
+    fs.writeFileSync(file, "x");
+    const brokenJournalRunner = new AgentRunner(adapter, {
+      runsDirectory: file,
+    });
+    adapter.events = [exitEvent(0)];
+    const result = await brokenJournalRunner.runAgent(
+      makeCtx([makeAgent()]),
+      "worker",
+      "task",
+    );
+    expect(result.exitCode).toBe(EXIT_CODE.SUCCESS);
+    expect(result.diagnosticsError).toBeTruthy();
   });
 
   it("captures spawn errors", async () => {

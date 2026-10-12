@@ -25,9 +25,16 @@ import {
 
 const MAX_PREVIOUS_OUTPUT_CHARS = 4000;
 
-function capPreviousOutput(output: string): string {
-  if (output.length <= MAX_PREVIOUS_OUTPUT_CHARS) return output;
-  return `${output.slice(0, MAX_PREVIOUS_OUTPUT_CHARS)}\n\n[Previous output truncated; full output is preserved in the prior step's tool details.]`;
+function capPreviousOutput(output: string, reportPath?: string): string {
+  const summary =
+    output.length <= MAX_PREVIOUS_OUTPUT_CHARS
+      ? output
+      : `${output.slice(0, MAX_PREVIOUS_OUTPUT_CHARS)}\n\n[Previous output truncated.]`;
+  return reportPath
+    ? `${summary}\n\nRead the previous step's report for the complete handoff: ${reportPath}`
+    : output.length > MAX_PREVIOUS_OUTPUT_CHARS
+      ? `${summary}\n[No persisted report available; inspect the worktree or request the missing details.]`
+      : summary;
 }
 
 type StrategyFn = (
@@ -63,6 +70,7 @@ const runSingle: StrategyFn = async (
       subAgentContext,
       `Agent ${result.stopReason || "failed"}: ${errorMsg}`,
       [result],
+      false,
       true,
     );
   }
@@ -88,6 +96,8 @@ const runParallel: StrategyFn = async (
       subAgentContext,
       `Too many parallel tasks (${classified.tasks.length}). Max is ${MAX_PARALLEL_TASKS}.`,
       [],
+      false,
+      true,
     );
   }
 
@@ -99,6 +109,7 @@ const runParallel: StrategyFn = async (
       agentSource: "unknown",
       task: classified.tasks[i].task,
       exitCode: EXIT_CODE.RUNNING,
+      phase: "queued",
       messages: [],
       stderr: "",
       usage: {
@@ -116,15 +127,16 @@ const runParallel: StrategyFn = async (
   const emitParallelUpdate = () => {
     if (onUpdate) {
       const running = allResults.filter(
-        (r) => r.exitCode === EXIT_CODE.RUNNING,
+        (r) => r.exitCode === EXIT_CODE.RUNNING && r.phase !== "queued",
       ).length;
+      const queued = allResults.filter((r) => r.phase === "queued").length;
       const done = allResults.filter(
         (r) => r.exitCode !== EXIT_CODE.RUNNING,
       ).length;
       onUpdate(
         createTextResult(
           subAgentContext,
-          `Parallel: ${done}/${allResults.length} done, ${running} running...`,
+          `Parallel: ${done}/${allResults.length} done, ${running} running, ${queued} queued...`,
           [...allResults],
         ),
       );
@@ -167,6 +179,8 @@ const runParallel: StrategyFn = async (
     subAgentContext,
     `Parallel: ${successCount}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}`,
     results,
+    false,
+    results.some(isFailedResult),
   );
 };
 
@@ -185,10 +199,19 @@ const runChain: StrategyFn = async (
   let previousOutput = "";
 
   for (let i = 0; i < chain.length; i++) {
+    if (signal?.aborted) {
+      return createTextResult(
+        subAgentContext,
+        `Chain cancelled before step ${i + 1}.`,
+        results,
+        false,
+        true,
+      );
+    }
     const step = chain[i];
     const taskWithContext = step.task.replace(
       /\{previous\}/g,
-      capPreviousOutput(previousOutput),
+      () => previousOutput,
     );
 
     const chainUpdate: OnUpdateCallback | undefined = onUpdate
@@ -221,10 +244,14 @@ const runChain: StrategyFn = async (
         subAgentContext,
         `Chain stopped at step ${i + 1} (${step.agent}): ${errorMsg}`,
         results,
+        false,
         true,
       );
     }
-    previousOutput = capPreviousOutput(getFinalOutput(result.messages));
+    previousOutput = capPreviousOutput(
+      getFinalOutput(result.messages),
+      result.diagnosticsError ? undefined : result.reportPath,
+    );
   }
   return createTextResult(
     subAgentContext,

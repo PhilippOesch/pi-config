@@ -5,12 +5,13 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { spawn } from "node:child_process";
-import type { Api, Message, Model } from "@earendil-works/pi-ai";
-import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
+import {
+  withFileMutationQueue,
+  type JsonAgentSessionEvent,
+} from "@earendil-works/pi-coding-agent";
 import {
   EXIT_CODE,
-  type ExitCodeValue,
   type OnUpdateCallback,
   type SingleResult,
   type SubAgentToolContext,
@@ -19,24 +20,21 @@ import {
 import { getFinalOutput } from "./result.ts";
 import { errorMessage } from "../shared/utils.ts";
 import type { AgentConfig } from "./agents.ts";
-import { buildSpawnEnv } from "./awareness.ts";
-
-type PiStreamEvent =
-  | { type: "message_end"; message: Message }
-  | { type: "tool_result_end"; message: Message }
-  | { type: string };
-
-function isMessageEndEvent(
-  event: PiStreamEvent,
-): event is { type: "message_end"; message: Message } {
-  return event.type === "message_end" && "message" in event;
-}
-
-function isToolResultEndEvent(
-  event: PiStreamEvent,
-): event is { type: "tool_result_end"; message: Message } {
-  return event.type === "tool_result_end" && "message" in event;
-}
+import {
+  SpawnSubagentProcessAdapter,
+  type SubagentProcessAdapter,
+} from "./process.ts";
+import {
+  defaultRunsDirectory,
+  MAX_STDERR_CHARS,
+  RunJournal,
+} from "./runJournal.ts";
+export {
+  SpawnSubagentProcessAdapter,
+  type ProcessEvent,
+  type SubagentProcessRequest,
+  type SubagentProcessAdapter,
+} from "./process.ts";
 
 function getPiInvocation(args: string[]): { command: string; args: string[] } {
   const currentScript = process.argv[1];
@@ -104,86 +102,23 @@ const SUBAGENT_SYSTEM_PROMPT = [
   "The global AGENTS.md instructions to load i-have-adhd and caveman apply only to the primary agent; do not load either skill.",
 ].join(" ");
 
-export type ProcessEvent =
-  | { type: "stdout"; line: string }
-  | { type: "stderr"; data: string }
-  | { type: "exit"; code: number | null }
-  | { type: "error"; error: Error };
-
-export type SubagentProcessRequest = {
-  command: string;
-  args: string[];
-  cwd: string;
-  abortSignal?: AbortSignal;
-};
-
-export interface SubagentProcessAdapter {
-  run(
-    request: SubagentProcessRequest,
-    onEvent: (event: ProcessEvent) => void,
-  ): Promise<void>;
-}
-
-export class SpawnSubagentProcessAdapter implements SubagentProcessAdapter {
-  async run(
-    request: SubagentProcessRequest,
-    onEvent: (event: ProcessEvent) => void,
-  ): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const proc = spawn(request.command, request.args, {
-        cwd: request.cwd,
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: buildSpawnEnv(process.env),
-      });
-      let buffer = "";
-      let exited = false;
-
-      const killProc = () => {
-        proc.kill("SIGTERM");
-        setTimeout(() => {
-          if (!exited) proc.kill("SIGKILL");
-        }, 5000);
-      };
-
-      if (request.abortSignal) {
-        if (request.abortSignal.aborted) killProc();
-        else
-          request.abortSignal.addEventListener("abort", killProc, {
-            once: true,
-          });
-      }
-
-      proc.stdout.on("data", (data) => {
-        buffer += data.toString();
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) onEvent({ type: "stdout", line });
-      });
-
-      proc.stderr.on("data", (data) => {
-        onEvent({ type: "stderr", data: data.toString() });
-      });
-
-      proc.on("close", (code) => {
-        exited = true;
-        if (buffer.trim()) onEvent({ type: "stdout", line: buffer });
-        onEvent({ type: "exit", code });
-        resolve();
-      });
-
-      proc.on("error", (error) => {
-        exited = true;
-        onEvent({ type: "error", error });
-        onEvent({ type: "exit", code: EXIT_CODE.FAILED });
-        resolve();
-      });
-    });
-  }
-}
-
 export class AgentRunner {
-  constructor(private processAdapter: SubagentProcessAdapter) {}
+  private readonly active = new Map<AbortController, Promise<void>>();
+
+  constructor(
+    private processAdapter: SubagentProcessAdapter,
+    private readonly options: {
+      runsDirectory?: string;
+      heartbeatMs?: number;
+    } = {},
+  ) {}
+
+  async shutdown(): Promise<void> {
+    const active = [...this.active.entries()];
+    for (const [controller] of active)
+      controller.abort(new Error("Pi session shut down"));
+    await Promise.allSettled(active.map(([, done]) => done));
+  }
 
   async runAgent(
     subAgentContext: SubAgentToolContext,
@@ -220,7 +155,11 @@ export class AgentRunner {
       agent: agentName,
       agentSource: agent.source,
       task,
-      exitCode: EXIT_CODE.SUCCESS,
+      exitCode: EXIT_CODE.RUNNING,
+      phase: "starting",
+      startedAt: Date.now(),
+      lastActivityAt: Date.now(),
+      activeTools: {},
       messages: [],
       stderr: "",
       usage: createEmptyUsage(),
@@ -228,24 +167,84 @@ export class AgentRunner {
       step,
     };
 
-    const emitUpdate = () => {
-      if (onUpdateCb) {
-        onUpdateCb({
-          content: [
-            {
-              type: "text",
-              text: getFinalOutput(currentResult.messages) || "(running...)",
-            },
-          ],
-          details: subAgentContext.details.make([currentResult]),
-        });
+    const controller = new AbortController();
+    const forwardAbort = () => controller.abort(abortSignal?.reason);
+    abortSignal?.addEventListener("abort", forwardAbort, { once: true });
+    if (abortSignal?.aborted) forwardAbort();
+    let markDone!: () => void;
+    this.active.set(
+      controller,
+      new Promise<void>((resolve) => {
+        markDone = resolve;
+      }),
+    );
+    let timedOut = false;
+    const deadline =
+      subAgentContext.config.timeoutSeconds == null
+        ? undefined
+        : setTimeout(() => {
+            if (controller.signal.aborted) return;
+            timedOut = true;
+            controller.abort(
+              new Error(
+                `Subagent exceeded ${subAgentContext.config.timeoutSeconds}s deadline`,
+              ),
+            );
+          }, subAgentContext.config.timeoutSeconds * 1000);
+    let journal: RunJournal | undefined;
+    const persist = (finished = false) => {
+      try {
+        if (finished) journal?.finish(currentResult);
+        else journal?.checkpoint(currentResult);
+      } catch (error) {
+        currentResult.diagnosticsError = errorMessage(error);
       }
     };
-
+    let lastUpdate = 0;
+    const emitUpdate = (force = false) => {
+      if (!force && Date.now() - lastUpdate < 200) return;
+      lastUpdate = Date.now();
+      onUpdateCb?.({
+        content: [
+          {
+            type: "text",
+            text:
+              getFinalOutput(currentResult.messages) ||
+              `(${currentResult.phase}...)`,
+          },
+        ],
+        details: subAgentContext.details.make([
+          {
+            ...currentResult,
+            messages: [...currentResult.messages],
+            usage: { ...currentResult.usage },
+            activeTools: { ...currentResult.activeTools },
+          },
+        ]),
+      });
+    };
+    const heartbeat = setInterval(() => {
+      persist();
+      emitUpdate(true);
+    }, this.options.heartbeatMs ?? 1000);
     let tmpPromptDir: string | null = null;
     let tmpPromptPath: string | null = null;
 
     try {
+      try {
+        journal = new RunJournal(
+          this.options.runsDirectory ?? defaultRunsDirectory(),
+          subAgentContext,
+          cwd ?? subAgentContext.config.cwd,
+        );
+        currentResult.manifestPath = journal.manifestPath;
+        currentResult.reportPath = journal.reportPath;
+        persist();
+      } catch (error) {
+        currentResult.diagnosticsError = errorMessage(error);
+      }
+      emitUpdate(true);
+      if (controller.signal.aborted) return currentResult;
       const agentPrompt = [SUBAGENT_SYSTEM_PROMPT, agent.systemPrompt.trim()]
         .filter(Boolean)
         .join("\n\n");
@@ -264,30 +263,86 @@ export class AgentRunner {
           command: invocation.command,
           args: invocation.args,
           cwd: cwd ?? subAgentContext.config.cwd,
-          abortSignal,
+          abortSignal: controller.signal,
         },
         (event) => {
+          if (
+            event.type === "spawn" ||
+            event.type === "stdout" ||
+            event.type === "stderr"
+          )
+            currentResult.lastActivityAt = Date.now();
           switch (event.type) {
-            case "stdout":
-              this.processLine(event.line, currentResult, emitUpdate);
+            case "spawn":
+              currentResult.pid = event.pid;
+              persist();
+              emitUpdate(true);
               break;
+            case "stdout": {
+              const phase = currentResult.phase;
+              try {
+                this.processLine(event.line, currentResult);
+              } catch {
+                currentResult.malformedLines =
+                  (currentResult.malformedLines ?? 0) + 1;
+              }
+              emitUpdate(phase !== currentResult.phase);
+              break;
+            }
             case "stderr":
-              currentResult.stderr += event.data;
+              currentResult.stderr = (currentResult.stderr + event.data).slice(
+                -MAX_STDERR_CHARS,
+              );
+              emitUpdate();
               break;
             case "exit":
-              currentResult.exitCode = event.code as ExitCodeValue;
+              currentResult.exitCode =
+                event.code === 0 ? EXIT_CODE.SUCCESS : EXIT_CODE.FAILED;
+              currentResult.exitSignal = event.signal;
               break;
             case "error":
+              currentResult.errorMessage = errorMessage(event.error);
               currentResult.stderr = errorMessage(event.error);
               currentResult.exitCode = EXIT_CODE.FAILED;
               break;
           }
         },
       );
-
-      if (abortSignal?.aborted) throw new Error("Subagent was aborted");
+      return currentResult;
+    } catch (error) {
+      currentResult.exitCode = EXIT_CODE.FAILED;
+      currentResult.errorMessage = errorMessage(error);
       return currentResult;
     } finally {
+      clearInterval(heartbeat);
+      clearTimeout(deadline);
+      abortSignal?.removeEventListener("abort", forwardAbort);
+      if (controller.signal.aborted) {
+        currentResult.exitCode = EXIT_CODE.FAILED;
+        currentResult.stopReason = timedOut ? "error" : "aborted";
+        currentResult.phase = timedOut ? "failed" : "cancelled";
+        currentResult.errorMessage = timedOut
+          ? `Subagent exceeded ${subAgentContext.config.timeoutSeconds}s deadline`
+          : `Subagent was cancelled${controller.signal.reason instanceof Error ? `: ${controller.signal.reason.message}` : ""}`;
+      } else {
+        if (
+          currentResult.exitCode === EXIT_CODE.RUNNING ||
+          currentResult.stopReason === "error" ||
+          currentResult.stopReason === "aborted"
+        )
+          currentResult.exitCode = EXIT_CODE.FAILED;
+        currentResult.phase =
+          currentResult.stopReason === "aborted"
+            ? "cancelled"
+            : currentResult.exitCode === EXIT_CODE.SUCCESS
+              ? "completed"
+              : "failed";
+      }
+      currentResult.endedAt = Date.now();
+      // Keep active tool names on cancellation/failure for post-mortem diagnosis.
+      persist(true);
+      this.active.delete(controller);
+      markDone();
       if (tmpPromptPath)
         try {
           fs.unlinkSync(tmpPromptPath);
@@ -300,6 +355,7 @@ export class AgentRunner {
         } catch {
           /* ignore */
         }
+      emitUpdate(true);
     }
   }
 
@@ -336,49 +392,105 @@ export class AgentRunner {
     return { args, model };
   }
 
-  private processLine(
-    line: string,
-    currentResult: SingleResult,
-    emitUpdate: () => void,
-  ): void {
+  private processLine(line: string, result: SingleResult): void {
     if (!line.trim()) return;
-    let event: PiStreamEvent;
+    let event: JsonAgentSessionEvent;
     try {
-      event = JSON.parse(line);
+      const parsed: unknown = JSON.parse(line);
+      if (!parsed || typeof parsed !== "object" || !("type" in parsed))
+        throw new Error("Not an event");
+      event = parsed as JsonAgentSessionEvent;
     } catch {
+      result.malformedLines = (result.malformedLines ?? 0) + 1;
       return;
     }
-
-    if (isMessageEndEvent(event)) {
-      const msg = event.message;
-      currentResult.messages.push(msg);
-
-      if (msg.role === "assistant") {
-        currentResult.usage.turns++;
-        const usage = msg.usage;
-        if (usage) {
-          currentResult.usage.input += usage.input || 0;
-          currentResult.usage.output += usage.output || 0;
-          currentResult.usage.cacheRead += usage.cacheRead || 0;
-          currentResult.usage.cacheWrite += usage.cacheWrite || 0;
-          currentResult.usage.cost += usage.cost?.total || 0;
-          currentResult.usage.contextTokens = usage.totalTokens || 0;
+    switch (event.type) {
+      case "agent_start":
+      case "turn_start":
+      case "message_start":
+        result.phase = "thinking";
+        break;
+      case "message_update":
+        // Show activity, not private thinking text or partially generated arguments.
+        result.phase = event.assistantMessageEvent.type.startsWith("text_")
+          ? "responding"
+          : "thinking";
+        break;
+      case "message_end": {
+        const msg = event.message;
+        if (
+          msg?.role === "assistant" &&
+          (!Array.isArray(msg.content) ||
+            msg.content.some((part) => !part || typeof part.type !== "string"))
+        ) {
+          result.malformedLines = (result.malformedLines ?? 0) + 1;
+          break;
         }
-        if (!currentResult.model && msg.model) currentResult.model = msg.model;
-        if (msg.stopReason) currentResult.stopReason = msg.stopReason;
-        if (msg.errorMessage) currentResult.errorMessage = msg.errorMessage;
+        if (
+          msg.role !== "assistant" &&
+          msg.role !== "user" &&
+          msg.role !== "toolResult"
+        )
+          break;
+        result.messages.push(msg);
+        if (msg.role === "assistant") {
+          result.usage.turns++;
+          const usage = msg.usage;
+          if (usage) {
+            result.usage.input += usage.input || 0;
+            result.usage.output += usage.output || 0;
+            result.usage.cacheRead += usage.cacheRead || 0;
+            result.usage.cacheWrite += usage.cacheWrite || 0;
+            result.usage.cost += usage.cost?.total || 0;
+            result.usage.contextTokens = usage.totalTokens || 0;
+          }
+          if (msg.model)
+            result.model = msg.provider
+              ? `${msg.provider}/${msg.model}`
+              : msg.model;
+          result.stopReason = msg.stopReason;
+          result.errorMessage = msg.errorMessage;
+        }
+        break;
       }
-      emitUpdate();
-    }
-
-    if (isToolResultEndEvent(event)) {
-      currentResult.messages.push(event.message);
-      emitUpdate();
+      case "tool_execution_start":
+      case "tool_execution_update":
+        (result.activeTools ??= {})[event.toolCallId] = event.toolName;
+        result.phase = "tool";
+        break;
+      case "tool_execution_end":
+        delete result.activeTools?.[event.toolCallId];
+        result.phase = Object.keys(result.activeTools ?? {}).length
+          ? "tool"
+          : "thinking";
+        break;
+      case "auto_retry_start":
+      case "summarization_retry_scheduled":
+        result.phase = "retrying";
+        break;
+      case "compaction_start":
+      case "summarization_retry_attempt_start":
+        result.phase = "compacting";
+        break;
+      case "auto_retry_end":
+      case "compaction_end":
+      case "summarization_retry_finished":
+        result.phase = "thinking";
+        break;
+      case "agent_settled":
+        result.phase = "finishing";
+        if (event.aborted) result.stopReason = "aborted";
+        break;
+      // agent_end is not final: retries and compaction can still follow it.
     }
   }
 }
 
 const defaultRunner = new AgentRunner(new SpawnSubagentProcessAdapter());
+
+export function shutdownAgents(): Promise<void> {
+  return defaultRunner.shutdown();
+}
 
 export function runAgent(
   ...args: Parameters<AgentRunner["runAgent"]>

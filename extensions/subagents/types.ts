@@ -46,6 +46,28 @@ export interface SingleResult {
   stopReason?: string;
   errorMessage?: string;
   step?: number;
+  phase?:
+    | "queued"
+    | "starting"
+    | "thinking"
+    | "responding"
+    | "tool"
+    | "retrying"
+    | "compacting"
+    | "finishing"
+    | "completed"
+    | "failed"
+    | "cancelled";
+  startedAt?: number;
+  lastActivityAt?: number;
+  endedAt?: number;
+  pid?: number;
+  exitSignal?: string;
+  activeTools?: Record<string, string>;
+  manifestPath?: string;
+  reportPath?: string;
+  diagnosticsError?: string;
+  malformedLines?: number;
 }
 
 export type AgentMode = "single" | "parallel" | "chain";
@@ -55,6 +77,7 @@ export interface SubagentDetails {
   agentScope: AgentScope;
   projectAgentsDir: string | null;
   results: SingleResult[];
+  totalSteps?: number;
 }
 
 const TaskItem = Type.Object({
@@ -82,6 +105,14 @@ const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
 });
 
 export const SubagentParams = Type.Object({
+  timeoutSeconds: Type.Optional(
+    Type.Number({
+      minimum: 1,
+      maximum: 86400,
+      description:
+        "Optional wall-clock limit per child, in seconds (1–86400). Default: no deadline; inactivity is displayed, not automatically killed.",
+    }),
+  ),
   agent: Type.Optional(
     Type.String({
       description: "Name of the agent to invoke (for single mode)",
@@ -158,6 +189,9 @@ export interface SugagentConfig {
   confirmProjectAgents: boolean;
   mode: AgentMode;
   requestedAgentNames: string[];
+  totalSteps?: number;
+  invocationId?: string;
+  timeoutSeconds?: number;
 }
 
 export interface SubAgentToolContext {

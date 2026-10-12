@@ -5,11 +5,12 @@ Delegate tasks to specialized subagents with isolated context windows.
 ## Features
 
 - **Isolated context**: Each subagent runs in a separate `pi` process
-- **Streaming output**: See tool calls and progress as they happen
+- **Visible progress**: Direct, model-only tool with live phase, active tool names, elapsed/idle time, PID and selected model
 - **Parallel streaming**: All parallel tasks stream updates simultaneously
 - **Markdown rendering**: Final output rendered with proper formatting (expanded view)
 - **Usage tracking**: Shows turns, tokens, cost, and context usage per agent
-- **Abort support**: Ctrl+C propagates to kill subagent processes
+- **Abort support**: Cancellation and session shutdown stop owned child processes, retaining diagnostics and completed stage reports
+- **Private run records**: Per-child manifests and final/partial reports survive cancellation; chain handoffs include readable report paths
 
 ## Structure
 
@@ -100,6 +101,29 @@ Use a chain: first have scout find the read tool, then have planner suggest impr
 | Parallel | `{ tasks: [...] }` | Multiple agents run concurrently (max 8, 4 concurrent) |
 | Chain    | `{ chain: [...] }` | Sequential with `{previous}` placeholder               |
 
+## Progress and run diagnostics
+
+`subagent` uses `exposure: "model-only"`: call it directly, not through a codemode script. Pi 1.1.0 codemode does not forward nested tool updates. Reload Pi (`/reload`) after installing changes to the extension.
+
+Progress updates show startup, thinking/response activity, active tools, retries, compaction and shutdown. The display refreshes once per second even when no events arrive; **last activity** advances only on child process activity, not on the refresh timer. Thinking text is not shown. Chain progress uses the total requested step count.
+
+Run files live in `$XDG_CACHE_HOME/pi/subagents/run-*/` (default `~/.cache/pi/subagents/run-*/`):
+
+- `manifest.json`: invocation ID, agent/model, cwd, stage/count, PID, phase, start/activity/end times, active tool names, exit signal, error, usage and bounded stderr tail. Checkpointed during execution and finalized on completion or cancellation.
+- `report.md`: last completed assistant text (all text blocks), including on cancellation. Reports are capped at 1 MiB. No completed text means the report says so; incomplete streaming text is not reconstructed.
+
+Directories are mode `0700`, files `0600`. Prompts, private thinking, raw events, environment variables and tool payloads are not persisted. **Final reports and stderr can still contain sensitive repository data**; do not share the files without checking them. Stderr retention is capped at 16 Ki characters. Completed runs older than seven days are pruned when another run starts; active/interrupted or unreadable records are not automatically deleted. Remove those manually when no longer needed. A parent crash can leave the last checkpoint marked running; it is not proof the child is still alive.
+
+If diagnostics storage fails, the tool reports that failure without discarding otherwise successful work. Each completed chain step is written before the next starts; `{previous}` remains capped at 4,000 characters, followed by a report path the next child can read. This is checkpointing, not automatic chain resumption.
+
+### Deadlines and cleanup
+
+Pass `timeoutSeconds` to set an optional **per-child** wall-clock deadline (also applies to each chain/parallel child). Default: no deadline. Inactivity is displayed, not used to kill legitimate slow tools automatically. On cancellation/deadline/shutdown, send SIGTERM, escalate after five seconds, and bound pipe draining for another five seconds. Pre-aborted requests do not spawn. Pi's SIGTERM handler owns cleanup of its tracked shell descendants; the extension does not indiscriminately kill unrelated process groups. Untracked descendants after forced termination are not guaranteed cleaned up.
+
+Failures return `isError: true` without suppressing the parent's recovery turn. Permission-gate termination behavior is unchanged. No automatic model failover or live-model calls are required by the lifecycle tests.
+
+Implementation is split across `agentRunner.ts` (events/state), `process.ts` (child lifecycle), `runJournal.ts` (private persistence), `agentStrategy.ts` (orchestration), and `render.ts` (display).
+
 ## Output Display
 
 **Collapsed view** (default):
@@ -185,8 +209,8 @@ Project agents override user agents with the same name when `agentScope: "both"`
 
 - **Exit code != 0**: Tool returns error with stderr/output
 - **stopReason "error"**: LLM error propagated with error message
-- **stopReason "aborted"**: User abort (Ctrl+C) kills subprocess, throws error
-- **Chain mode**: Stops at first failing step, reports which step failed
+- **stopReason "aborted"**: Cancellation stops the child and persists its partial report/diagnostics instead of throwing them away
+- **Chain mode**: Stops at first failing or cancelled step, retains completed reports, and does not launch subsequent steps
 
 ## Limitations
 

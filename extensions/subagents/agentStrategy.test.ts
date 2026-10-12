@@ -104,7 +104,7 @@ describe("strategies.single", () => {
     expect(result.terminate).toBe(false);
   });
 
-  it("returns failure message with terminate on failure", async () => {
+  it("marks failure without suppressing parent recovery", async () => {
     vi.mocked(runAgent).mockResolvedValueOnce(makeFailure("a", "boom"));
     const result = await strategies.single(
       {} as Parameters<typeof strategies.single>[0],
@@ -114,7 +114,8 @@ describe("strategies.single", () => {
     expect((result.content[0] as { text: string }).text).toContain(
       "Agent failed: boom",
     );
-    expect(result.terminate).toBe(true);
+    expect(result.terminate).toBe(false);
+    expect(result.isError).toBe(true);
   });
 });
 
@@ -210,7 +211,9 @@ describe("strategies.chain", () => {
   it("truncates {previous} to 4000 chars with literal marker", async () => {
     const longOutput = "x".repeat(5000);
     vi.mocked(runAgent)
-      .mockResolvedValueOnce(makeSuccess("a", longOutput))
+      .mockResolvedValueOnce(
+        makeSuccess("a", longOutput, { reportPath: "/private/run/report.md" }),
+      )
       .mockResolvedValueOnce(makeSuccess("b", "ok"));
     await strategies.chain(
       {} as Parameters<typeof strategies.chain>[0],
@@ -226,11 +229,11 @@ describe("strategies.chain", () => {
     const secondTask = vi.mocked(runAgent).mock.calls[1]?.[2] as string;
     expect(secondTask).toContain("x".repeat(4000));
     expect(secondTask).toContain(
-      "[Previous output truncated; full output is preserved in the prior step's tool details.]",
+      "Read the previous step's report for the complete handoff: /private/run/report.md",
     );
   });
 
-  it("stops chain on first failure with terminate", async () => {
+  it("stops chain on first failure with an error result", async () => {
     vi.mocked(runAgent)
       .mockResolvedValueOnce(makeSuccess("a", "ok"))
       .mockResolvedValueOnce(makeFailure("b", "bad"));
@@ -249,6 +252,50 @@ describe("strategies.chain", () => {
     expect((result.content[0] as { text: string }).text).toContain(
       "Chain stopped at step 2 (b)",
     );
-    expect(result.terminate).toBe(true);
+    expect(result.terminate).toBe(false);
+    expect(result.isError).toBe(true);
+  });
+
+  it("does not start another chain step after cancellation and keeps completed results", async () => {
+    const controller = new AbortController();
+    vi.mocked(runAgent).mockImplementationOnce(async () => {
+      controller.abort();
+      return makeSuccess("a", "saved", { reportPath: "/private/a/report.md" });
+    });
+    const result = await strategies.chain(
+      {} as Parameters<typeof strategies.chain>[0],
+      stubContext(),
+      {
+        kind: "chain",
+        chain: [
+          { agent: "a", task: "first" },
+          { agent: "b", task: "second" },
+        ],
+      },
+      controller.signal,
+    );
+    expect(runAgent).toHaveBeenCalledTimes(1);
+    expect(result.isError).toBe(true);
+    expect((result.details as SubagentDetails).results[0]?.reportPath).toBe(
+      "/private/a/report.md",
+    );
+  });
+
+  it("passes previous output literally, including replacement syntax", async () => {
+    vi.mocked(runAgent)
+      .mockResolvedValueOnce(makeSuccess("a", "$& $` $'"))
+      .mockResolvedValueOnce(makeSuccess("b", "done"));
+    await strategies.chain(
+      {} as Parameters<typeof strategies.chain>[0],
+      stubContext(),
+      {
+        kind: "chain",
+        chain: [
+          { agent: "a", task: "first" },
+          { agent: "b", task: "Read {previous}" },
+        ],
+      },
+    );
+    expect(vi.mocked(runAgent).mock.calls[1]?.[2]).toBe("Read $& $` $'");
   });
 });
