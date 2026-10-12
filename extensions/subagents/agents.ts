@@ -72,6 +72,21 @@ function parseToolList(value: unknown): string[] | undefined {
 }
 
 /**
+ * Normalize a frontmatter `requiresConfirmation` value to a boolean.
+ *
+ * Treats YAML truthy scalars (`true`, `yes`) as true; anything else defaults
+ * to false.
+ */
+function parseRequiresConfirmation(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "yes") return true;
+  }
+  return false;
+}
+
+/**
  * Normalize a frontmatter `models` value to a list of `provider/id` strings.
  *
  * Accepted forms:
@@ -89,21 +104,6 @@ function parseToolList(value: unknown): string[] | undefined {
  * throwing: this runs inside agent discovery, where a single bad file must
  * not take down every other agent in the same directory.
  */
-/**
- * Normalize a frontmatter `requiresConfirmation` value to a boolean.
- *
- * Treats YAML truthy scalars (`true`, `yes`) as true; anything else defaults
- * to false.
- */
-function parseRequiresConfirmation(value: unknown): boolean {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "true" || normalized === "yes") return true;
-  }
-  return false;
-}
-
 function parseModelList(value: unknown): string[] | undefined {
   let raw: unknown[];
   if (Array.isArray(value)) {

@@ -1,4 +1,4 @@
-import type { SugagentToolParams } from "./types.ts";
+import type { SubagentToolParams } from "./types.ts";
 
 export interface InvalidModeCountError {
   type: "invalidModeCount";
@@ -10,15 +10,15 @@ export type ClassifiedParams =
   | { kind: "single"; agent: string; task: string; cwd?: string }
   | {
       kind: "parallel";
-      tasks: NonNullable<SugagentToolParams["tasks"]>;
+      tasks: NonNullable<SubagentToolParams["tasks"]>;
     }
   | {
       kind: "chain";
-      chain: NonNullable<SugagentToolParams["chain"]>;
+      chain: NonNullable<SubagentToolParams["chain"]>;
     }
   | { kind: "invalid"; error: ValidationError };
 
-export function classifyParams(params: SugagentToolParams): ClassifiedParams {
+export function classifyParams(params: SubagentToolParams): ClassifiedParams {
   const hasChain = (params.chain?.length ?? 0) > 0;
   const hasTasks = (params.tasks?.length ?? 0) > 0;
   const hasSingle = Boolean(params.agent && params.task);

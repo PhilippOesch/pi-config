@@ -5,7 +5,7 @@ import { SubagentDispatch, type ConfirmationAdapter } from "./dispatch.ts";
 import * as agentsModule from "./agents.ts";
 import * as sharedUtils from "../shared/utils.ts";
 import * as agentStrategy from "./agentStrategy.ts";
-import { type SugagentToolParams } from "./types.ts";
+import { type SubagentToolParams } from "./types.ts";
 import type { AgentConfig } from "./agents.ts";
 
 vi.mock("./agents.ts", async (importOriginal) => {
@@ -73,7 +73,7 @@ beforeEach(() => {
 
 const runDispatch = (
   ctx: ExtensionContext,
-  params: SugagentToolParams,
+  params: SubagentToolParams,
   confirm: ConfirmationAdapter = {
     available: true,
     confirm: vi.fn(async () => true),

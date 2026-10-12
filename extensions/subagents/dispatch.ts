@@ -15,10 +15,16 @@ import { truncate } from "./format.ts";
 import {
   type SingleResult,
   type SubAgentToolContext,
-  type SugagentConfig,
-  type SugagentToolParams,
+  type SubagentConfig,
+  type SubagentToolParams,
 } from "./types.ts";
 import { classifyParams, type ValidationError } from "./validation.ts";
+
+function formatAvailableAgents(config: SubagentConfig): string {
+  return (
+    config.agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none"
+  );
+}
 
 export type ConfirmationAdapter = {
   available: boolean;
@@ -39,7 +45,7 @@ export type DispatchOutcome =
 export class SubagentDispatch {
   constructor(
     private ctx: ExtensionContext,
-    private params: SugagentToolParams,
+    private params: SubagentToolParams,
     private signal: AbortSignal | undefined,
     private onUpdate: AgentToolUpdateCallback<unknown> | undefined,
     private confirmation: ConfirmationAdapter,
@@ -69,7 +75,7 @@ export class SubagentDispatch {
       return {
         outcome: "strategyError",
         context: subAgentContext,
-        text: `Invalid parameters. Available agents: ${subAgentContext.config.agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none"}`,
+        text: `Invalid parameters. Available agents: ${formatAvailableAgents(config)}`,
       };
     }
 
@@ -83,7 +89,7 @@ export class SubagentDispatch {
     return { outcome: "success", result };
   }
 
-  private processConfig(): SugagentConfig {
+  private processConfig(): SubagentConfig {
     const agentScope: AgentScope = this.params.agentScope ?? "user";
     const discovery = discoverAgents(this.ctx.cwd, agentScope);
     const dispatchDefaults = {
@@ -109,13 +115,13 @@ export class SubagentDispatch {
     };
   }
 
-  private inferMode(params: SugagentToolParams) {
+  private inferMode(params: SubagentToolParams) {
     const hasChain = (params.chain?.length ?? 0) > 0;
     const hasTasks = (params.tasks?.length ?? 0) > 0;
     return hasChain ? "chain" : hasTasks ? "parallel" : "single";
   }
 
-  private buildSubAgentContext(config: SugagentConfig): SubAgentToolContext {
+  private buildSubAgentContext(config: SubagentConfig): SubAgentToolContext {
     return {
       config,
       details: {
@@ -147,13 +153,18 @@ export class SubagentDispatch {
   ): string {
     switch (error.type) {
       case "invalidModeCount": {
-        const available =
-          subAgentContext.config.agents
-            .map((a) => `${a.name} (${a.source})`)
-            .join(", ") || "none";
-        return `Invalid parameters. Provide exactly one mode.\nAvailable agents: ${available}`;
+        return `Invalid parameters. Provide exactly one mode.\nAvailable agents: ${formatAvailableAgents(subAgentContext.config)}`;
       }
     }
+  }
+
+  private findRequestedAgents(
+    config: SubagentConfig,
+    matches: (agent: AgentConfig) => boolean,
+  ): AgentConfig[] {
+    return config.requestedAgentNames
+      .map((name) => config.agents.find((a) => a.name === name))
+      .filter((a): a is AgentConfig => a !== undefined && matches(a));
   }
 
   private async checkPrivilegedGate(
@@ -161,9 +172,10 @@ export class SubagentDispatch {
   ): Promise<DispatchOutcome | null> {
     if (!isReadModeActive(this.ctx)) return null;
 
-    const privilegedAgents = subAgentContext.config.requestedAgentNames
-      .map((name) => subAgentContext.config.agents.find((a) => a.name === name))
-      .filter((a): a is AgentConfig => a?.requiresConfirmation === true);
+    const privilegedAgents = this.findRequestedAgents(
+      subAgentContext.config,
+      (a) => a.requiresConfirmation === true,
+    );
 
     if (privilegedAgents.length === 0) return null;
 
@@ -207,9 +219,10 @@ export class SubagentDispatch {
     if (!subAgentContext.config.confirmProjectAgents) return null;
     if (!this.confirmation.available) return null;
 
-    const projectAgentsRequested = subAgentContext.config.requestedAgentNames
-      .map((name) => subAgentContext.config.agents.find((a) => a.name === name))
-      .filter((a): a is AgentConfig => a?.source === "project");
+    const projectAgentsRequested = this.findRequestedAgents(
+      subAgentContext.config,
+      (a) => a.source === "project",
+    );
 
     if (projectAgentsRequested.length === 0) return null;
 

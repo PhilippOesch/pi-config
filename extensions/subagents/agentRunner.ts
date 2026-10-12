@@ -11,17 +11,18 @@ import {
   type JsonAgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
 import {
+  createEmptyUsage,
   EXIT_CODE,
   type OnUpdateCallback,
   type SingleResult,
   type SubAgentToolContext,
-  type UsageStats,
 } from "./types.ts";
 import { getFinalOutput } from "./result.ts";
 import { errorMessage } from "../shared/utils.ts";
 import type { AgentConfig } from "./agents.ts";
 import {
   SpawnSubagentProcessAdapter,
+  type ProcessEvent,
   type SubagentProcessAdapter,
 } from "./process.ts";
 import {
@@ -83,18 +84,6 @@ async function writePromptToTempFile(
     });
   });
   return { dir: tmpDir, filePath };
-}
-
-function createEmptyUsage(): UsageStats {
-  return {
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    cost: 0,
-    contextTokens: 0,
-    turns: 0,
-  };
 }
 
 const SUBAGENT_SYSTEM_PROMPT = [
@@ -265,48 +254,8 @@ export class AgentRunner {
           cwd: cwd ?? subAgentContext.config.cwd,
           abortSignal: controller.signal,
         },
-        (event) => {
-          if (
-            event.type === "spawn" ||
-            event.type === "stdout" ||
-            event.type === "stderr"
-          )
-            currentResult.lastActivityAt = Date.now();
-          switch (event.type) {
-            case "spawn":
-              currentResult.pid = event.pid;
-              persist();
-              emitUpdate(true);
-              break;
-            case "stdout": {
-              const phase = currentResult.phase;
-              try {
-                this.processLine(event.line, currentResult);
-              } catch {
-                currentResult.malformedLines =
-                  (currentResult.malformedLines ?? 0) + 1;
-              }
-              emitUpdate(phase !== currentResult.phase);
-              break;
-            }
-            case "stderr":
-              currentResult.stderr = (currentResult.stderr + event.data).slice(
-                -MAX_STDERR_CHARS,
-              );
-              emitUpdate();
-              break;
-            case "exit":
-              currentResult.exitCode =
-                event.code === 0 ? EXIT_CODE.SUCCESS : EXIT_CODE.FAILED;
-              currentResult.exitSignal = event.signal;
-              break;
-            case "error":
-              currentResult.errorMessage = errorMessage(event.error);
-              currentResult.stderr = errorMessage(event.error);
-              currentResult.exitCode = EXIT_CODE.FAILED;
-              break;
-          }
-        },
+        (event) =>
+          this.handleProcessEvent(event, currentResult, persist, emitUpdate),
       );
       return currentResult;
     } catch (error) {
@@ -317,27 +266,12 @@ export class AgentRunner {
       clearInterval(heartbeat);
       clearTimeout(deadline);
       abortSignal?.removeEventListener("abort", forwardAbort);
-      if (controller.signal.aborted) {
-        currentResult.exitCode = EXIT_CODE.FAILED;
-        currentResult.stopReason = timedOut ? "error" : "aborted";
-        currentResult.phase = timedOut ? "failed" : "cancelled";
-        currentResult.errorMessage = timedOut
-          ? `Subagent exceeded ${subAgentContext.config.timeoutSeconds}s deadline`
-          : `Subagent was cancelled${controller.signal.reason instanceof Error ? `: ${controller.signal.reason.message}` : ""}`;
-      } else {
-        if (
-          currentResult.exitCode === EXIT_CODE.RUNNING ||
-          currentResult.stopReason === "error" ||
-          currentResult.stopReason === "aborted"
-        )
-          currentResult.exitCode = EXIT_CODE.FAILED;
-        currentResult.phase =
-          currentResult.stopReason === "aborted"
-            ? "cancelled"
-            : currentResult.exitCode === EXIT_CODE.SUCCESS
-              ? "completed"
-              : "failed";
-      }
+      this.finalizeResult(
+        currentResult,
+        controller,
+        timedOut,
+        subAgentContext.config.timeoutSeconds,
+      );
       currentResult.endedAt = Date.now();
       // Keep active tool names on cancellation/failure for post-mortem diagnosis.
       persist(true);
@@ -357,6 +291,85 @@ export class AgentRunner {
         }
       emitUpdate(true);
     }
+  }
+
+  private handleProcessEvent(
+    event: ProcessEvent,
+    currentResult: SingleResult,
+    persist: () => void,
+    emitUpdate: (force?: boolean) => void,
+  ): void {
+    if (
+      event.type === "spawn" ||
+      event.type === "stdout" ||
+      event.type === "stderr"
+    ) {
+      currentResult.lastActivityAt = Date.now();
+    }
+    switch (event.type) {
+      case "spawn":
+        currentResult.pid = event.pid;
+        persist();
+        emitUpdate(true);
+        break;
+      case "stdout": {
+        const phase = currentResult.phase;
+        try {
+          this.processLine(event.line, currentResult);
+        } catch {
+          currentResult.malformedLines =
+            (currentResult.malformedLines ?? 0) + 1;
+        }
+        emitUpdate(phase !== currentResult.phase);
+        break;
+      }
+      case "stderr":
+        currentResult.stderr = (currentResult.stderr + event.data).slice(
+          -MAX_STDERR_CHARS,
+        );
+        emitUpdate();
+        break;
+      case "exit":
+        currentResult.exitCode =
+          event.code === 0 ? EXIT_CODE.SUCCESS : EXIT_CODE.FAILED;
+        currentResult.exitSignal = event.signal;
+        break;
+      case "error":
+        currentResult.errorMessage = errorMessage(event.error);
+        currentResult.stderr = errorMessage(event.error);
+        currentResult.exitCode = EXIT_CODE.FAILED;
+        break;
+    }
+  }
+
+  private finalizeResult(
+    currentResult: SingleResult,
+    controller: AbortController,
+    timedOut: boolean,
+    timeoutSeconds: number | undefined,
+  ): void {
+    if (controller.signal.aborted) {
+      currentResult.exitCode = EXIT_CODE.FAILED;
+      currentResult.stopReason = timedOut ? "error" : "aborted";
+      currentResult.phase = timedOut ? "failed" : "cancelled";
+      currentResult.errorMessage = timedOut
+        ? `Subagent exceeded ${timeoutSeconds}s deadline`
+        : `Subagent was cancelled${controller.signal.reason instanceof Error ? `: ${controller.signal.reason.message}` : ""}`;
+      return;
+    }
+    if (
+      currentResult.exitCode === EXIT_CODE.RUNNING ||
+      currentResult.stopReason === "error" ||
+      currentResult.stopReason === "aborted"
+    ) {
+      currentResult.exitCode = EXIT_CODE.FAILED;
+    }
+    currentResult.phase =
+      currentResult.stopReason === "aborted"
+        ? "cancelled"
+        : currentResult.exitCode === EXIT_CODE.SUCCESS
+          ? "completed"
+          : "failed";
   }
 
   private buildArgs(

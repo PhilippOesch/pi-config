@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { mapLimit } from "../shared/utils.ts";
 import {
+  createEmptyUsage,
   EXIT_CODE,
   MAX_CONCURRENCY,
   MAX_PARALLEL_TASKS,
@@ -26,15 +27,32 @@ import {
 const MAX_PREVIOUS_OUTPUT_CHARS = 4000;
 
 function capPreviousOutput(output: string, reportPath?: string): string {
-  const summary =
-    output.length <= MAX_PREVIOUS_OUTPUT_CHARS
-      ? output
-      : `${output.slice(0, MAX_PREVIOUS_OUTPUT_CHARS)}\n\n[Previous output truncated.]`;
-  return reportPath
-    ? `${summary}\n\nRead the previous step's report for the complete handoff: ${reportPath}`
-    : output.length > MAX_PREVIOUS_OUTPUT_CHARS
-      ? `${summary}\n[No persisted report available; inspect the worktree or request the missing details.]`
-      : summary;
+  const truncated = output.length > MAX_PREVIOUS_OUTPUT_CHARS;
+  const summary = truncated
+    ? `${output.slice(0, MAX_PREVIOUS_OUTPUT_CHARS)}\n\n[Previous output truncated.]`
+    : output;
+  if (reportPath) {
+    return `${summary}\n\nRead the previous step's report for the complete handoff: ${reportPath}`;
+  }
+  return truncated
+    ? `${summary}\n[No persisted report available; inspect the worktree or request the missing details.]`
+    : summary;
+}
+
+function createQueuedResult(task: {
+  agent: string;
+  task: string;
+}): SingleResult {
+  return {
+    agent: task.agent,
+    agentSource: "unknown",
+    task: task.task,
+    exitCode: EXIT_CODE.RUNNING,
+    phase: "queued",
+    messages: [],
+    stderr: "",
+    usage: createEmptyUsage(),
+  };
 }
 
 type StrategyFn = (
@@ -101,28 +119,7 @@ const runParallel: StrategyFn = async (
     );
   }
 
-  const allResults: SingleResult[] = new Array(classified.tasks.length);
-
-  for (let i = 0; i < classified.tasks.length; i++) {
-    allResults[i] = {
-      agent: classified.tasks[i].agent,
-      agentSource: "unknown",
-      task: classified.tasks[i].task,
-      exitCode: EXIT_CODE.RUNNING,
-      phase: "queued",
-      messages: [],
-      stderr: "",
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        cost: 0,
-        contextTokens: 0,
-        turns: 0,
-      },
-    };
-  }
+  const allResults: SingleResult[] = classified.tasks.map(createQueuedResult);
 
   const emitParallelUpdate = () => {
     if (onUpdate) {

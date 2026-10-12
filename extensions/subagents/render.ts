@@ -7,7 +7,7 @@ import {
   type AgentScope,
   type SingleResult,
   type SubagentDetails,
-  type SugagentToolParams,
+  type SubagentToolParams,
 } from "./types.ts";
 import { createUi } from "./ui.ts";
 import { formatToolCall, formatUsageStats } from "./format.ts";
@@ -19,7 +19,7 @@ import {
 } from "./result.ts";
 
 export function renderCall(
-  args: SugagentToolParams,
+  args: SubagentToolParams,
   theme: Theme,
   _context: unknown,
 ) {
@@ -92,6 +92,61 @@ function aggregateUsage(results: SingleResult[]) {
   return total;
 }
 
+function addToolCallRows(
+  container: Container,
+  displayItems: DisplayItem[],
+  theme: Theme,
+): void {
+  for (const item of displayItems) {
+    if (item.type !== "toolCall") continue;
+    container.addChild(
+      new Text(
+        theme.fg("muted", "→ ") +
+          formatToolCall(item.name, item.args, theme.fg.bind(theme)),
+        0,
+        0,
+      ),
+    );
+  }
+}
+
+function addOutputMarkdown(
+  container: Container,
+  finalOutput: string,
+  mdTheme: ReturnType<typeof getMarkdownTheme>,
+): void {
+  if (!finalOutput) return;
+  container.addChild(new Spacer(1));
+  container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
+}
+
+function addTotalUsage(
+  container: Container,
+  results: SingleResult[],
+  theme: Theme,
+): void {
+  const usageStr = formatUsageStats(aggregateUsage(results));
+  if (!usageStr) return;
+  container.addChild(new Spacer(1));
+  container.addChild(new Text(theme.fg("dim", `Total: ${usageStr}`), 0, 0));
+}
+
+function renderCollapsedStep(
+  theme: Theme,
+  ui: ReturnType<typeof createUi>,
+  result: SingleResult,
+  label: string,
+  emptyLabel: string,
+): string {
+  const icon = ui.icons.singleResultToIcon(result);
+  const displayItems = getDisplayItems(result.messages);
+  const header = `\n\n${theme.fg("muted", label)}${theme.fg("accent", result.agent)} ${icon}`;
+  if (displayItems.length === 0) {
+    return `${header}\n${theme.fg("muted", emptyLabel)}`;
+  }
+  return `${header}\n${renderCollapsedDisplayItems(theme, displayItems, 5)}`;
+}
+
 function renderCollapsedDisplayItems(
   theme: Theme,
   items: DisplayItem[],
@@ -140,27 +195,30 @@ function renderResultItem(
     new Text(theme.fg("muted", "Task: ") + theme.fg("dim", r.task), 0, 0),
   );
 
-  for (const item of displayItems) {
-    if (item.type === "toolCall") {
-      container.addChild(
-        new Text(
-          theme.fg("muted", "→ ") +
-            formatToolCall(item.name, item.args, theme.fg.bind(theme)),
-          0,
-          0,
-        ),
-      );
-    }
-  }
-
-  if (finalOutput) {
-    container.addChild(new Spacer(1));
-    container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
-  }
+  addToolCallRows(container, displayItems, theme);
+  addOutputMarkdown(container, finalOutput, mdTheme);
 
   const usageStr = formatUsageStats(r.usage, r.model);
   if (usageStr) container.addChild(new Text(theme.fg("dim", usageStr), 0, 0));
 
+  return container;
+}
+
+function renderExpandedResults(
+  header: string,
+  details: SubagentDetails,
+  mode: "chain" | "parallel",
+  theme: Theme,
+  mdTheme: ReturnType<typeof getMarkdownTheme>,
+  ui: ReturnType<typeof createUi>,
+): Container {
+  const container = new Container();
+  container.addChild(new Text(header, 0, 0));
+  for (const r of details.results) {
+    container.addChild(new Spacer(1));
+    container.addChild(renderResultItem(r, { mode, theme, mdTheme, ui }));
+  }
+  addTotalUsage(container, details.results, theme);
   return container;
 }
 
@@ -204,21 +262,8 @@ function renderResultBody(
       if (displayItems.length === 0 && !finalOutput) {
         container.addChild(new Text(theme.fg("muted", "(no output)"), 0, 0));
       } else {
-        for (const item of displayItems) {
-          if (item.type === "toolCall")
-            container.addChild(
-              new Text(
-                theme.fg("muted", "→ ") +
-                  formatToolCall(item.name, item.args, theme.fg.bind(theme)),
-                0,
-                0,
-              ),
-            );
-        }
-        if (finalOutput) {
-          container.addChild(new Spacer(1));
-          container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
-        }
+        addToolCallRows(container, displayItems, theme);
+        addOutputMarkdown(container, finalOutput, mdTheme);
       }
       const usageStr = formatUsageStats(r.usage, r.model);
       if (usageStr) {
@@ -260,33 +305,17 @@ function renderResultBody(
         : ui.icons.error();
 
     if (expanded) {
-      const container = new Container();
-      container.addChild(
-        new Text(
-          icon +
-            " " +
-            theme.fg("toolTitle", theme.bold("chain ")) +
-            theme.fg("accent", `${successCount}/${totalSteps} steps`),
-          0,
-          0,
-        ),
+      return renderExpandedResults(
+        icon +
+          " " +
+          theme.fg("toolTitle", theme.bold("chain ")) +
+          theme.fg("accent", `${successCount}/${totalSteps} steps`),
+        details,
+        "chain",
+        theme,
+        mdTheme,
+        ui,
       );
-
-      for (const r of details.results) {
-        container.addChild(new Spacer(1));
-        container.addChild(
-          renderResultItem(r, { mode: "chain", theme, mdTheme, ui }),
-        );
-      }
-
-      const usageStr = formatUsageStats(aggregateUsage(details.results));
-      if (usageStr) {
-        container.addChild(new Spacer(1));
-        container.addChild(
-          new Text(theme.fg("dim", `Total: ${usageStr}`), 0, 0),
-        );
-      }
-      return container;
     }
 
     let text =
@@ -295,12 +324,13 @@ function renderResultBody(
       theme.fg("toolTitle", theme.bold("chain ")) +
       theme.fg("accent", `${successCount}/${totalSteps} steps`);
     for (const r of details.results) {
-      const rIcon = ui.icons.singleResultToIcon(r);
-      const displayItems = getDisplayItems(r.messages);
-      text += `\n\n${theme.fg("muted", `─── Step ${r.step}: `)}${theme.fg("accent", r.agent)} ${rIcon}`;
-      if (displayItems.length === 0)
-        text += `\n${theme.fg("muted", "(no output)")}`;
-      else text += `\n${renderCollapsedDisplayItems(theme, displayItems, 5)}`;
+      text += renderCollapsedStep(
+        theme,
+        ui,
+        r,
+        `─── Step ${r.step}: `,
+        "(no output)",
+      );
     }
     const usageStr = formatUsageStats(aggregateUsage(details.results));
     if (usageStr) text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
@@ -330,43 +360,25 @@ function renderResultBody(
       : `${successCount}/${details.results.length} tasks`;
 
     if (expanded && !isRunning) {
-      const container = new Container();
-      container.addChild(
-        new Text(
-          `${icon} ${theme.fg("toolTitle", theme.bold("parallel "))}${theme.fg("accent", status)}`,
-          0,
-          0,
-        ),
+      return renderExpandedResults(
+        `${icon} ${theme.fg("toolTitle", theme.bold("parallel "))}${theme.fg("accent", status)}`,
+        details,
+        "parallel",
+        theme,
+        mdTheme,
+        ui,
       );
-
-      for (const r of details.results) {
-        container.addChild(new Spacer(1));
-        container.addChild(
-          renderResultItem(r, { mode: "parallel", theme, mdTheme, ui }),
-        );
-      }
-
-      const usageStr = formatUsageStats(aggregateUsage(details.results));
-      if (usageStr) {
-        container.addChild(new Spacer(1));
-        container.addChild(
-          new Text(theme.fg("dim", `Total: ${usageStr}`), 0, 0),
-        );
-      }
-      return container;
     }
 
     let text = `${icon} ${theme.fg("toolTitle", theme.bold("parallel "))}${theme.fg("accent", status)}`;
     for (const r of details.results) {
-      const rIcon =
-        r.exitCode === EXIT_CODE.RUNNING
-          ? ui.icons.waiting()
-          : ui.icons.singleResultToIcon(r);
-      const displayItems = getDisplayItems(r.messages);
-      text += `\n\n${theme.fg("muted", "─── ")}${theme.fg("accent", r.agent)} ${rIcon}`;
-      if (displayItems.length === 0)
-        text += `\n${theme.fg("muted", r.exitCode === EXIT_CODE.RUNNING ? "(running...)" : "(no output)")}`;
-      else text += `\n${renderCollapsedDisplayItems(theme, displayItems, 5)}`;
+      text += renderCollapsedStep(
+        theme,
+        ui,
+        r,
+        "─── ",
+        r.exitCode === EXIT_CODE.RUNNING ? "(running...)" : "(no output)",
+      );
     }
     if (!isRunning) {
       const usageStr = formatUsageStats(aggregateUsage(details.results));

@@ -34,6 +34,18 @@ export interface UsageStats {
   turns: number;
 }
 
+export function createEmptyUsage(): UsageStats {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    cost: 0,
+    contextTokens: 0,
+    turns: 0,
+  };
+}
+
 export interface SingleResult {
   agent: string;
   agentSource: AgentSource;
@@ -145,31 +157,31 @@ export const SubagentParams = Type.Object({
   ),
 });
 
-export type SugagentToolParams = Static<typeof SubagentParams>;
+export type SubagentToolParams = Static<typeof SubagentParams>;
 
-export type ChainParams = Omit<SugagentToolParams, "chain"> & {
-  chain: NonNullable<SugagentToolParams["chain"]>;
+export type ChainParams = Omit<SubagentToolParams, "chain"> & {
+  chain: NonNullable<SubagentToolParams["chain"]>;
 };
 
-export function isChain(params: SugagentToolParams): params is ChainParams {
+export function isChain(params: SubagentToolParams): params is ChainParams {
   return Boolean(params.chain && params.chain.length > 0);
 }
 
-export type TasksParams = Omit<SugagentToolParams, "tasks"> & {
-  tasks: NonNullable<SugagentToolParams["tasks"]>;
+export type TasksParams = Omit<SubagentToolParams, "tasks"> & {
+  tasks: NonNullable<SubagentToolParams["tasks"]>;
 };
 
-export function isTasks(params: SugagentToolParams): params is TasksParams {
+export function isTasks(params: SubagentToolParams): params is TasksParams {
   return Boolean(params.tasks && params.tasks.length > 0);
 }
 
-export type SingleTaskParams = Omit<SugagentToolParams, "task" | "agent"> & {
-  task: NonNullable<SugagentToolParams["task"]>;
-  agent: NonNullable<SugagentToolParams["agent"]>;
+export type SingleTaskParams = Omit<SubagentToolParams, "task" | "agent"> & {
+  task: NonNullable<SubagentToolParams["task"]>;
+  agent: NonNullable<SubagentToolParams["agent"]>;
 };
 
 export function isSingleTask(
-  params: SugagentToolParams,
+  params: SubagentToolParams,
 ): params is SingleTaskParams {
   return Boolean(params.agent && params.task);
 }
@@ -179,7 +191,7 @@ export interface DispatchDefaults {
   thinkingLevel?: ThinkingLevel;
 }
 
-export interface SugagentConfig {
+export interface SubagentConfig {
   cwd: string;
   agentScope: AgentScope;
   dispatchDefaults: DispatchDefaults;
@@ -195,7 +207,7 @@ export interface SugagentConfig {
 }
 
 export interface SubAgentToolContext {
-  config: SugagentConfig;
+  config: SubagentConfig;
   details: {
     make: (results: SingleResult[]) => SubagentDetails;
   };
