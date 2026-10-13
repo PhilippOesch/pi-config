@@ -16,3 +16,13 @@ install
 bin
 /mcp-auth.json
 favorite-models.json
+
+# Local working notes
+/plans/
+/handoff/
+
+# Runtime config examples and project agent notes (kept locally, not in package)
+/example/agent/
+/AGENTS.md
+/extensions/subagents/plans/
+/extensions/subagents/package-lock.json

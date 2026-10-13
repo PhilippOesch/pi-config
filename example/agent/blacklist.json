@@ -1,8 +1,0 @@
-{
-  "paths": [
-    ".git",
-    "node_modules",
-    "bin",
-    "obj"
-  ]
-}
