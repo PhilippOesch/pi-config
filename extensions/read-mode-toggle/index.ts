@@ -82,7 +82,7 @@ export default function readModeToggleExtension(pi: ExtensionAPI): void {
     },
   });
 
-  pi.registerShortcut("ctrl+shift+m", {
+  pi.registerShortcut("ctrl+m", {
     description: "Toggle between save mode and yolo mode",
     handler: (ctx) => {
       if (!ctx.hasUI) return;
