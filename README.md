@@ -7,7 +7,7 @@ A Pi package with personal extensions, prompts, themes, and agents.
 From git:
 
 ```bash
-pi install git:github.com/PhilippOesch/pi-config
+pi install git:github.com/PhilippOesch/pi-mp-my-agent
 ```
 
 Or use a local copy during development:
@@ -31,7 +31,7 @@ personal Pi config (e.g. `~/.pi/agent/`) add the package:
 ```json
 {
   "packages": [
-    "git:github.com/PhilippOesch/pi-config"
+    "git:github.com/PhilippOesch/pi-mp-my-agent"
   ]
 }
 ```
@@ -44,12 +44,35 @@ Create your own `settings.json`, `keybindings.json`, `blacklist.json`, and
 
 ## Development
 
+Load the package locally for one Pi session without installing it:
+
 ```bash
-npm install
+pi -e ./path/to/pi-mp-my-agent
 ```
 
-The `subagents` extension has its own tooling; run its checks from
-`extensions/subagents/`.
+Inside Pi, run `/reload` after making changes to extensions, prompts, themes, or agents so the runtime picks them up.
+
+To install the package persistently (personal scope):
+
+```bash
+pi install ./path/to/pi-mp-my-agent
+```
+
+Or add it to `~/.pi/agent/settings.json`:
+
+```json
+{
+  "packages": [
+    "./path/to/pi-mp-my-agent"
+  ]
+}
+```
+
+Validate the package manifest before committing:
+
+```bash
+npm run validate
+```
 
 ## License
 
