@@ -1,9 +1,9 @@
 ---
-description: Research a topic with local scouts, web explorers, and Azure DevOps
+description: Research a topic with local scouts, web explorers, and Azure DevOps or Figma
 argument-hint: "<topic>"
 ---
 
-Research $@ by dispatching relevant `scout`, `explorer`, and `azure-devops-navigator` subagents in parallel, then synthesize one structured answer. This is research-only; do not modify files.
+Research $@ by dispatching relevant `scout`, `explorer`, `azure-devops-navigator`, and `figma-navigator` subagents in parallel, then synthesize one structured answer. This is research-only; do not modify files.
 
 Process:
 
@@ -13,12 +13,14 @@ Process:
    - For each codebase angle, assign `scout` with the angle and overall topic.
    - For each web angle, assign `explorer` with the angle and overall topic.
    - For each live Azure DevOps angle, assign `azure-devops-navigator` with the angle and overall topic. It has read-only ADO tools.
+   - For each Figma angle, assign `figma-navigator` with the angle and overall topic. Use it to inspect Figma files, nodes, variables, or design-system context; include any supplied Figma URL and node ID. Keep the task read-only.
 
 3. Synthesize the returned results:
    - Local findings: files, code, and architecture from scouts.
    - Web findings: cited summaries from explorers.
    - Azure DevOps findings: live project data from the navigator.
+   - Figma findings: design details and source links from the navigator.
    - Key takeaways.
    - Open questions or conflicts between sources.
 
-Done when the synthesis is returned and every factual claim is tied to a scout result, a web citation, an Azure DevOps result, or explicitly flagged uncertain.
+Done when the synthesis is returned and every factual claim is tied to a scout result, a web citation, an Azure DevOps result, a Figma result, or explicitly flagged uncertain.

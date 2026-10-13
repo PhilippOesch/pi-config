@@ -32,6 +32,9 @@ import type {
   ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import { READ_MODE_ENTRY_TYPE } from "../shared/constants.ts";
+import {
+	Key,
+} from "@earendil-works/pi-tui";
 
 type Mode = "save" | "yolo";
 
@@ -82,13 +85,14 @@ export default function readModeToggleExtension(pi: ExtensionAPI): void {
     },
   });
 
-  pi.registerShortcut("ctrl+m", {
-    description: "Toggle between save mode and yolo mode",
-    handler: (ctx) => {
-      if (!ctx.hasUI) return;
-      toggle(ctx);
-    },
-  });
+  //TODO: fix the control
+  // pi.registerShortcut(Key.("m"), {
+  //   description: "Toggle between save mode and yolo mode",
+  //   handler: (ctx) => {
+  //     if (!ctx.hasUI) return;
+  //     toggle(ctx);
+  //   },
+  // });
 
   // Restore the persisted mode on every session start (startup, reload, new,
   // resume, fork). We scan the current branch so tree navigation reflects the
