@@ -38,8 +38,12 @@ Use `scout` or `explorer` for read-only codebase research. Run the workflow as a
 - Convert the approach into concrete, ordered actions.
 - Every step must have a clear completion criterion.
 
-#### 2.4 Write the plan — create `plans/` if missing, save to `plans/{task}_plan.md`. Required sections:
+#### 2.4 Write the plan — create `{task}_plan.md`
 
+**Write the plan to `/agent-context`**.
+Name format: `{task}_plan.md`
+
+##### Contents:
 - **Goal**
 - **Background / Environment** — from planner
 - **Approach** — from planner (high-level strategy + alternatives considered)

@@ -7,7 +7,6 @@
   "private": true,
   "files": [
     "extensions",
-    "skills",
     "prompts",
     "themes",
     "agents",
@@ -31,7 +30,6 @@
       "./extensions/todo.ts",
       "./extensions/working-indicator.ts"
     ],
-    "skills": ["./skills"],
     "prompts": ["./prompts/*.md"],
     "themes": ["./themes/*.json"]
   },

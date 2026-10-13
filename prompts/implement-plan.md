@@ -9,7 +9,7 @@ A plan is the minimum requirement. If no plan exists, stop and tell the user.
 
 ## Plan discovery
 
-1. Look for `plans/` in cwd. If absent, stop — report a plan is required.
+1. Find the plan based on the plan-name inside of the `/agent-context`. If absent, stop — report a plan is required.
 2. If exactly one plan file exists, use it.
 3. If multiple exist, infer from current context. If still ambiguous, ask the user.
 4. If $@ names a plan, prefer that one.
