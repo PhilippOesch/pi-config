@@ -152,25 +152,10 @@ async function openBrowser(filePath: string): Promise<void> {
       stdio: "ignore",
     });
     child.on("error", reject);
-
-    if (isWsl) {
-      child.on("close", (code, signal) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(
-            new Error(
-              `${command} exited with ${
-                code === null ? `signal ${signal}` : `code ${code}`
-              }`,
-            ),
-          );
-        }
-      });
-      return;
-    }
-
     child.on("spawn", () => {
+      // In WSL, explorer.exe can hand the file to Windows successfully and still
+      // exit nonzero. A successful spawn is the reliable signal that the request
+      // was handed off; the opener's later exit status is not meaningful here.
       child.unref();
       resolve();
     });

@@ -43,6 +43,7 @@ export OBSIDIAN_PATH="$HOME/path/to/your/vault"
 - `agents/` — Custom subagents
 - `extensions/` — Pi extensions; `instructions.ts` lists files to load from the agent directory and project ancestors. Files with `applyTo` frontmatter are added as read-on-match pointers.
 - `prompts/` — Prompt templates
+- `skills/` — Skills
 - `themes/` — Custom themes
 
 ## User data (not tracked)

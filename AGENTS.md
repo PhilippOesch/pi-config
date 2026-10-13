@@ -1,8 +1,8 @@
 Keep in mind that humans have very small context windows!
 
 Always load these skills in the listed order:
-1. /i-have-adhd
-2. /caveman
+1. /caveman
+2. /i-have-adhd
 
 For Coding questions, think about approaches that might make future maintenance easier but also weight your approaches with the YAGNE principal (You arent't gonna need it)
 
