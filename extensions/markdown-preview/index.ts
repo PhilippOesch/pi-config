@@ -22,6 +22,7 @@ import { promisify } from "node:util";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { marked } from "marked";
 import { Type } from "typebox";
+import { isWslEnvironment } from "../shared/interop";
 
 function wrapHtml(title: string, bodyHtml: string): string {
   return `<!DOCTYPE html>
@@ -113,20 +114,19 @@ function escapeHtml(text: string): string {
 
 const execFileAsync = promisify(execFile);
 
-function isWslEnvironment(process: NodeJS.Process): boolean {
-  return Boolean(process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP);
-}
-
 function getPlatformOpenCommand(process: NodeJS.Process): string {
   if (isWslEnvironment(process)) {
     return "explorer.exe";
   }
+  //windows native
   if (process.platform == "win32") {
     return "start";
   }
+  // mac ose
   if (process.platform == "darwin") {
     return "open";
   }
+  // linux
   return "xdg-open";
 }
 
