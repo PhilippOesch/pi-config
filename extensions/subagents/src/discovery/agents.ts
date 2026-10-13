@@ -4,6 +4,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   CONFIG_DIR_NAME,
   getAgentDir,
@@ -11,6 +12,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 export type AgentScope = "user" | "project" | "both";
+export type AgentSource = "user" | "project" | "package";
 
 export interface AgentConfig {
   name: string;
@@ -20,7 +22,7 @@ export interface AgentConfig {
   models?: string[];
   requiresConfirmation?: boolean;
   systemPrompt: string;
-  source: "user" | "project";
+  source: AgentSource;
   filePath: string;
 }
 
@@ -122,9 +124,9 @@ function parseModelList(value: unknown): string[] | undefined {
   return models.length > 0 ? models : undefined;
 }
 
-function loadAgentsFromDir(
+export function loadAgentsFromDir(
   dir: string,
-  source: "user" | "project",
+  source: AgentSource,
 ): AgentConfig[] {
   const agents: AgentConfig[] = [];
 
@@ -203,6 +205,15 @@ function findNearestProjectAgentsDir(cwd: string): string | null {
     if (parentDir === currentDir) return null;
     currentDir = parentDir;
   }
+}
+
+function getPackageAgentsDir(): string {
+  const thisFile = fileURLToPath(import.meta.url);
+  return path.resolve(path.dirname(thisFile), "..", "..", "..", "..", "agents");
+}
+
+export function discoverPackageAgents(): AgentConfig[] {
+  return loadAgentsFromDir(getPackageAgentsDir(), "package");
 }
 
 export function discoverAgents(

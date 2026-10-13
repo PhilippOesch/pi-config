@@ -1,64 +1,62 @@
-# Pi Config
+# pi-mp-my-agent
 
-Personal configuration for the [Pi coding agent](https://github.com/badlogic/pi-mono).
+A Pi package with personal extensions, prompts, themes, and agents.
 
 ## Install
 
-This repo is intended to be used as a git submodule inside dotfiles at
-`home/pi/agent`.
+From git:
 
 ```bash
-cd ~/dotfiles
-git submodule add https://github.com/PhilippOesch/pi-config.git home/pi/agent
-git submodule update --init --recursive
+pi install git:github.com/PhilippOesch/pi-config
 ```
 
-Then symlink `home/pi` to `~/.pi`:
+Or use a local copy during development:
 
 ```bash
-ln -s "$HOME/dotfiles/home/pi" "$HOME/.pi"
-```
-
-Install the config dependencies once per machine — Pi does not auto-install
-dependencies of local extensions:
-
-```bash
-npm i
-```
-
-MCP configuration is machine-specific and not tracked. Copy the example and
-set the environment variables it references:
-
-```bash
-cp mcp.example.json mcp.json
-export OBSIDIAN_PATH="$HOME/path/to/your/vault"
+pi install ./path/to/pi-config
 ```
 
 ## Contents
 
-- `settings.json` — Pi settings
-- `mcp.example.json` — Template for MCP server configuration (copy to `mcp.json`)
-- `keybindings.json` — Custom keybindings
-- `blacklist.json` — Path blacklist
-- `agents/` — Custom subagents
-- `extensions/` — Pi extensions; `instructions.ts` lists files to load from the agent directory and project ancestors. Files with `applyTo` frontmatter are added as read-on-match pointers.
+- `extensions/` — Pi extensions
 - `prompts/` — Prompt templates
-- `skills/` — Skills
 - `themes/` — Custom themes
+- `agents/` — Subagent definitions loaded by the `subagents` extension
+- `example/agent/` — Example personal config files (`settings.json`, `keybindings.json`, `blacklist.json`, `mcp.example.json`)
 
-## User data (not tracked)
+## Personal config
 
-The following files are generated at runtime or are machine-specific and are
-not committed:
+This repo is a package, not a runnable `~/.pi/agent` directory. Copy the files
+from `example/agent/` into your personal Pi config (e.g. `~/.pi/agent/`) and
+adjust them for the machine:
 
-- `mcp.json`
-- `auth.json`
-- `trust.json`
-- `models-store.json`
-- `memory/`
-- `sessions/`
-- `node_modules/`
-- `npm/`
+```bash
+mkdir -p ~/.pi/agent
+cp example/agent/* ~/.pi/agent/
+# Then edit ~/.pi/agent/settings.json and copy mcp.example.json to mcp.json
+```
+
+Add the package to `~/.pi/agent/settings.json`:
+
+```json
+{
+  "packages": [
+    "git:github.com/PhilippOesch/pi-config"
+  ]
+}
+```
+
+`mcp.json`, `auth.json`, `trust.json`, `models-store.json`, `memory/`, and
+`sessions/` are generated at runtime and are not tracked.
+
+## Development
+
+```bash
+npm install
+```
+
+The `subagents` extension has its own tooling; run its checks from
+`extensions/subagents/`.
 
 ## License
 

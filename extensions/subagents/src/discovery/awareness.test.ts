@@ -8,6 +8,7 @@ import {
   buildSpawnEnv,
   isSubagentProcess,
 } from "./awareness.ts";
+import { discoverPackageAgents } from "./agents.ts";
 
 const makeAgentFile = (dir: string, name: string, content: string): void => {
   fs.writeFileSync(path.join(dir, `${name}.md`), content, "utf-8");
@@ -47,10 +48,18 @@ describe("buildAwarenessSection", () => {
 
     expect(section).toContain("Delegate to these with the subagent tool:");
     expect(section).toContain("- writer (user): Writes prose");
+    for (const agent of discoverPackageAgents()) {
+      if (agent.name === "writer") continue;
+      expect(section).toContain(`- ${agent.name} (package): ${agent.description}`);
+    }
   });
 
-  it("returns undefined when no agents exist", () => {
-    expect(buildAwarenessSection("/tmp")).toBeUndefined();
+  it("returns package agents when no user/project agents exist", () => {
+    const section = buildAwarenessSection("/tmp");
+    expect(section).toBeDefined();
+    for (const agent of discoverPackageAgents()) {
+      expect(section).toContain(`- ${agent.name} (package): ${agent.description}`);
+    }
   });
 });
 

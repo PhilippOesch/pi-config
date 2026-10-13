@@ -12,11 +12,6 @@
     "lint:fix": "eslint --fix .",
     "test": "vitest run"
   },
-  "pi": {
-    "extensions": [
-      "./src/index.ts"
-    ]
-  },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "^1.1.0",
     "@earendil-works/pi-coding-agent": "^1.1.0",
@@ -28,5 +23,11 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.31.0",
     "vitest": "^5.0.3"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   }
 }

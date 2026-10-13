@@ -25,7 +25,7 @@ export const EXIT_CODE = {
 
 export type ExitCodeValue = (typeof EXIT_CODE)[keyof typeof EXIT_CODE];
 
-export type AgentSource = "user" | "project" | "unknown";
+export type AgentSource = "user" | "project" | "package" | "unknown";
 
 export interface UsageStats {
   input: number;

@@ -10,9 +10,8 @@
  *   The agent will call preview_markdown({ path: "README.md" }).
  *
  * Requirements:
- *   - Run `npm install` in this extension directory so `marked` is available.
- *   - The extension must be loaded by pi (global extensions are auto-discovered from
- *     `~/.pi/agent/extensions/`). Use `/reload` in pi if it was added while running.
+ *   - `marked` is declared as a package dependency.
+ *   - The extension must be loaded by pi. Use `/reload` in pi if it was added while running.
  */
 
 import { execFile, spawn } from "node:child_process";

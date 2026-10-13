@@ -8,7 +8,11 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverAgents } from "./agents.ts";
+import {
+  discoverAgents,
+  discoverPackageAgents,
+  type AgentConfig,
+} from "./agents.ts";
 
 export const SUBAGENT_ENV_MARKER = "PI_SUBAGENT";
 
@@ -22,11 +26,23 @@ export function isSubagentProcess(
   return Boolean(env[SUBAGENT_ENV_MARKER]);
 }
 
+function mergeWithPackageAgents(agents: AgentConfig[]): AgentConfig[] {
+  const map = new Map<string, AgentConfig>();
+  for (const agent of discoverPackageAgents()) {
+    map.set(agent.name, agent);
+  }
+  for (const agent of agents) {
+    map.set(agent.name, agent);
+  }
+  return Array.from(map.values());
+}
+
 export function buildAwarenessSection(cwd: string): string | undefined {
   const { agents } = discoverAgents(cwd, "both");
-  if (agents.length === 0) return undefined;
+  const merged = mergeWithPackageAgents(agents);
+  if (merged.length === 0) return undefined;
 
-  const lines = agents
+  const lines = merged
     .map((a) => `- ${a.name} (${a.source}): ${a.description}`)
     .join("\n");
 

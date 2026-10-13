@@ -12,6 +12,7 @@ import {
   type AgentConfig,
   type AgentScope,
   discoverAgents,
+  discoverPackageAgents,
 } from "../discovery/agents.ts";
 import { isReadModeActive } from "../../../shared/utils.ts";
 import { strategies } from "./agentStrategy.ts";
@@ -93,9 +94,21 @@ export class SubagentDispatch {
     return { outcome: "success", result };
   }
 
+  private mergeAgents(base: AgentConfig[], override: AgentConfig[]): AgentConfig[] {
+    const map = new Map<string, AgentConfig>();
+    for (const agent of base) {
+      map.set(agent.name, agent);
+    }
+    for (const agent of override) {
+      map.set(agent.name, agent);
+    }
+    return Array.from(map.values());
+  }
+
   private processConfig(): SubagentConfig {
     const agentScope: AgentScope = this.params.agentScope ?? "user";
     const discovery = discoverAgents(this.ctx.cwd, agentScope);
+    const agents = this.mergeAgents(discoverPackageAgents(), discovery.agents);
     const dispatchDefaults = {
       model: this.ctx.model
         ? `${this.ctx.model.provider}/${this.ctx.model.id}`
@@ -107,7 +120,7 @@ export class SubagentDispatch {
       cwd: this.ctx.cwd,
       agentScope,
       dispatchDefaults,
-      agents: discovery.agents,
+      agents,
       projectAgentsDir: discovery.projectAgentsDir,
       availableModels: this.ctx.modelRegistry.getAvailable(),
       confirmProjectAgents: this.params.confirmProjectAgents ?? true,

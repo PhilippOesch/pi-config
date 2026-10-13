@@ -1,16 +1,51 @@
 {
-  "private": true,
+  "name": "pi-mp-my-agent",
+  "version": "0.1.0",
+  "description": "Personal Pi coding agent package with extensions, prompts, themes, and agents.",
   "type": "module",
-  "workspaces": [
-    "agent/extensions/*"
+  "keywords": ["pi-package"],
+  "private": true,
+  "files": [
+    "extensions",
+    "prompts",
+    "themes",
+    "agents",
+    "LICENSE",
+    "README.md"
   ],
+  "pi": {
+    "extensions": [
+      "./extensions/block-command.ts",
+      "./extensions/btw.ts",
+      "./extensions/exit-command.ts",
+      "./extensions/favorite-models.ts",
+      "./extensions/herdr-agent-state.ts",
+      "./extensions/hidden-thinking-label.ts",
+      "./extensions/instructions.ts",
+      "./extensions/markdown-preview/index.ts",
+      "./extensions/mcp-approval.ts",
+      "./extensions/path-blacklist/index.ts",
+      "./extensions/read-mode-toggle/index.ts",
+      "./extensions/subagents/src/index.ts",
+      "./extensions/todo.ts",
+      "./extensions/working-indicator.ts"
+    ],
+    "prompts": ["./prompts/*.md"],
+    "themes": ["./themes/*.json"]
+  },
+  "dependencies": {
+    "marked": "^18.1.0"
+  },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^1.1.0",
     "@earendil-works/pi-tui": "^1.1.0",
     "@types/node": "*"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.1",
-    "marked": "^18.1.0"
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   }
 }
