@@ -48,8 +48,8 @@ export const defaultConfig: PiMpMyAgentConfig = {
   },
 };
 
-export const configDir = join(homedir(), ".config", "pi-mp-my-agent");
-export const configPath = join(configDir, "config.json");
+export const configDir = join(homedir(), ".pi", "agent");
+export const configPath = join(configDir, "pi-mp-my-agent.json");
 
 export async function readConfig(): Promise<PiMpMyAgentConfig | null> {
   try {

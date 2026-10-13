@@ -5,7 +5,7 @@ argument-hint: "<instruction>"
 
 When writing plans, research, reference material, or handoff notes for the user, store them in the configured agent-context folder instead of the current repo or a scratch directory.
 
-Read the config at `~/.config/pi-mp-my-agent/config.json` to find `knowledge.agentContextPath` and the folder mapping.
+Read the config at `~/.pi/agent/pi-mp-my-agent.json` to find `knowledge.agentContextPath` and the folder mapping.
 
 Rules:
 - Write agent-generated output to `<agentContextPath>/<folder>/`.

@@ -5,7 +5,7 @@ description: Set up or reconfigure the agent context folder inside an Obsidian v
 
 # setup-agent-context
 
-Goal: ensure `~/.config/pi-mp-my-agent/config.json` exists and points to a valid agent-context folder tree.
+Goal: ensure `~/.pi/agent/pi-mp-my-agent.json` exists and points to a valid agent-context folder tree.
 
 Done when:
 - Config file is written.
@@ -15,7 +15,7 @@ Done when:
 ## Steps
 
 1. **Load or create config**
-   - Path: `~/.config/pi-mp-my-agent/config.json`.
+   - Path: `~/.pi/agent/pi-mp-my-agent.json`.
    - If it exists, read it.
    - If it is missing or the `knowledge` section is missing, start with the default config below.
 
@@ -34,7 +34,7 @@ Done when:
      - `99-archive/`
 
 4. **Write config**
-   - Write the resolved paths and folder names back to `~/.config/pi-mp-my-agent/config.json`.
+   - Write the resolved paths and folder names back to `~/.pi/agent/pi-mp-my-agent.json`.
    - Show the user the final config and folder list.
 
 ## Default config
